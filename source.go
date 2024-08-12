@@ -82,13 +82,8 @@ func (s *Source) Read(_ context.Context) (opencdc.Record, error) {
 	return opencdc.Record{}, nil
 }
 
-func (s *Source) Ack(_ context.Context, _ opencdc.Position) error {
-	// Ack signals to the implementation that the record with the supplied
-	// position was successfully processed. This method might be called after
-	// the context of Read is already cancelled, since there might be
-	// outstanding acks that need to be delivered. When Teardown is called it is
-	// guaranteed there won't be any more calls to Ack.
-	// Ack can be called concurrently with Read.
+func (s *Source) Ack(ctx context.Context, pos opencdc.Position) error {
+	sdk.Logger(ctx).Debug().Str("position", string(pos)).Msg("got ack")
 	return nil
 }
 
