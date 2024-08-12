@@ -1,4 +1,4 @@
-package connectorname
+package dynamodb
 
 import sdk "github.com/conduitio/conduit-connector-sdk"
 

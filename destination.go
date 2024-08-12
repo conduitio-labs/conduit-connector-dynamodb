@@ -1,4 +1,4 @@
-package connectorname
+package dynamodb
 
 //go:generate paramgen -output=paramgen_dest.go DestinationConfig
 
