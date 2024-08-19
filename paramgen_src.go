@@ -8,23 +8,41 @@ import (
 )
 
 const (
-	SourceConfigFoo                   = "foo"
-	SourceConfigGlobalConfigParamName = "global_config_param_name"
+	SourceConfigAwsAccessKeyId     = "aws.accessKeyId"
+	SourceConfigAwsRegion          = "aws.region"
+	SourceConfigAwsSecretAccessKey = "aws.secretAccessKey"
+	SourceConfigTable              = "table"
 )
 
 func (SourceConfig) Parameters() map[string]config.Parameter {
 	return map[string]config.Parameter{
-		SourceConfigFoo: {
+		SourceConfigAwsAccessKeyId: {
 			Default:     "",
-			Description: "SourceConfigParam is named foo and must be provided by the user.",
+			Description: "",
 			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{
 				config.ValidationRequired{},
 			},
 		},
-		SourceConfigGlobalConfigParamName: {
+		SourceConfigAwsRegion: {
 			Default:     "",
-			Description: "GlobalConfigParam is named global_config_param_name and needs to be\nprovided by the user.",
+			Description: "",
+			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{
+				config.ValidationRequired{},
+			},
+		},
+		SourceConfigAwsSecretAccessKey: {
+			Default:     "",
+			Description: "",
+			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{
+				config.ValidationRequired{},
+			},
+		},
+		SourceConfigTable: {
+			Default:     "",
+			Description: "",
 			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{
 				config.ValidationRequired{},
