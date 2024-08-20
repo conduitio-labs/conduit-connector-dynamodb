@@ -90,6 +90,7 @@ func (s *SnapshotIterator) Next(ctx context.Context) (opencdc.Record, error) {
 	item := s.items[s.index]
 	s.index++
 
+	// todo: get key name from params
 	key := item["key"].(*types.AttributeValueMemberS).Value
 	// Create the record
 	return sdk.Util.Source.NewRecordSnapshot(
