@@ -28,6 +28,7 @@ import (
 // SnapshotIterator to iterate through DynamoDB items in a specific table.
 type SnapshotIterator struct {
 	tableName        string
+	key              string
 	client           *dynamodb.Client
 	lastEvaluatedKey map[string]types.AttributeValue
 	items            []map[string]types.AttributeValue
@@ -36,9 +37,10 @@ type SnapshotIterator struct {
 }
 
 // NewSnapshotIterator initializes a SnapshotIterator starting from the provided position.
-func NewSnapshotIterator(tableName string, client *dynamodb.Client, p opencdc.Position) (*SnapshotIterator, error) {
+func NewSnapshotIterator(tableName string, key string, client *dynamodb.Client, p opencdc.Position) (*SnapshotIterator, error) {
 	return &SnapshotIterator{
 		tableName:        tableName,
+		key:              key,
 		client:           client,
 		lastEvaluatedKey: nil,
 		firstIt:          true,
@@ -91,7 +93,7 @@ func (s *SnapshotIterator) Next(ctx context.Context) (opencdc.Record, error) {
 	s.index++
 
 	// todo: get key name from params
-	key := item["key"].(*types.AttributeValueMemberS).Value
+	key := item[s.key].(*types.AttributeValueMemberS).Value
 	// Create the record
 	return sdk.Util.Source.NewRecordSnapshot(
 		opencdc.Position{},
@@ -99,7 +101,7 @@ func (s *SnapshotIterator) Next(ctx context.Context) (opencdc.Record, error) {
 			opencdc.MetadataCollection: s.tableName,
 		},
 		opencdc.StructuredData{
-			"key": key,
+			s.key: key,
 		},
 		opencdc.StructuredData(s.getRecMap(item)),
 	), nil

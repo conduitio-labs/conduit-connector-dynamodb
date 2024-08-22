@@ -5,11 +5,11 @@ package dynamodb
 import (
 	"context"
 	"fmt"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	iterator "github.com/conduitio-labs/conduit-connector-dynamodb/iterators"
 	cconfig "github.com/conduitio/conduit-commons/config"
 	"github.com/conduitio/conduit-commons/opencdc"
@@ -19,16 +19,17 @@ import (
 type Source struct {
 	sdk.UnimplementedSource
 
-	config         SourceConfig
-	dynamoDBClient *dynamodb.Client
-	//dynamoDBStreams  *dynamodbstreams.DynamoDBStreams
+	config           SourceConfig
+	dynamoDBClient   *dynamodb.Client
 	lastPositionRead opencdc.Position
 	streamArn        string
 	iterator         *iterator.SnapshotIterator
 }
 
 type SourceConfig struct {
-	Table              string `json:"table" validate:"required"`
+	Table string `json:"table" validate:"required"`
+	Key   string `json:"key" validate:"required"`
+	// add sortKey?
 	AWSRegion          string `json:"aws.region" validate:"required"`
 	AWSAccessKeyID     string `json:"aws.accessKeyId" validate:"required"`
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
@@ -67,41 +68,44 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 
 	s.dynamoDBClient = dynamodb.NewFromConfig(cfg)
 	s.lastPositionRead = pos
-	s.iterator, err = iterator.NewSnapshotIterator(s.config.Table, s.dynamoDBClient, pos)
-	return err
+	s.iterator, err = iterator.NewSnapshotIterator(s.config.Table, s.config.Key, s.dynamoDBClient, pos)
+	if err != nil {
+		return err
+	}
 
-	//s.dynamoDBStreams = dynamodbstreams.NewFromConfig(cfg)
-	//// Get Stream ARN for the table
-	//out, err := describeTable(ctx, s.dynamoDBClient, s.config.TableName)
-	//if err != nil {
-	//	return fmt.Errorf("error describing table: %w", err)
-	//}
-	//if out.Table.LatestStreamArn != nil {
-	//	fmt.Printf("LatestStreamArn found: %s\n", *out.Table.LatestStreamArn)
-	//	s.streamArn = *out.Table.LatestStreamArn
-	//	return nil
-	//}
-	//
-	//sdk.Logger(ctx).Info().Msg("No stream enabled. Enabling stream...")
-	//// Enable stream if not present
-	//err = enableStream(s.dynamoDBClient, s.config.TableName)
-	//if err != nil {
-	//	log.Fatalf("Failed to enable stream on DynamoDB table: %v", err)
-	//}
-	//
-	//// Describe the table again to get the LatestStreamArn
-	//out, err = describeTable(s.dynamoDBClient, s.config.TableName)
-	//if err != nil {
-	//	log.Fatalf("Failed to describe DynamoDB table after enabling stream: %v", err)
-	//}
-	//
-	//if out.Table.LatestStreamArn == nil {
-	//	fmt.Println("Stream was not enabled successfully.")
-	//	return fmt.Errorf("stream was not enabled successfully")
-	//}
-	//
-	//sdk.Logger(ctx).Info().Str("LatestStreamArn", *out.Table.LatestStreamArn).Msg("Stream enabled successfully.")
-	//s.streamArn = *out.Table.LatestStreamArn
+	// Describe the table to get Stream ARN
+	out, err := describeTable(ctx, s.dynamoDBClient, s.config.Table)
+	if err != nil {
+		return fmt.Errorf("error describing table: %w", err)
+	}
+
+	if out.Table.LatestStreamArn != nil {
+		sdk.Logger(ctx).Info().Str("LatestStreamArn", *out.Table.LatestStreamArn).Msg("LatestStreamArn found.")
+		s.streamArn = *out.Table.LatestStreamArn
+		return nil
+	}
+
+	sdk.Logger(ctx).Info().Msg("No stream enabled. Enabling stream...")
+
+	// Enable stream if not present
+	if err := enableStream(ctx, s.dynamoDBClient, s.config.Table); err != nil {
+		return fmt.Errorf("failed to enable stream on DynamoDB table: %w", err)
+	}
+
+	// Describe the table again to get the LatestStreamArn
+	out, err = describeTable(ctx, s.dynamoDBClient, s.config.Table)
+	if err != nil {
+		return fmt.Errorf("failed to describe DynamoDB table after enabling stream: %w", err)
+	}
+
+	if out.Table.LatestStreamArn == nil {
+		return fmt.Errorf("stream was not enabled successfully")
+	}
+
+	sdk.Logger(ctx).Info().Str("LatestStreamArn", *out.Table.LatestStreamArn).Msg("Stream enabled successfully.")
+	s.streamArn = *out.Table.LatestStreamArn
+
+	return nil
 }
 
 func (s *Source) Read(ctx context.Context) (opencdc.Record, error) {
@@ -134,14 +138,14 @@ func describeTable(ctx context.Context, client *dynamodb.Client, tableName strin
 	return client.DescribeTable(ctx, describeTableInput)
 }
 
-//func enableStream(ctx context.Context, client *dynamodb.Client, tableName string) error {
-//	updateTableInput := &dynamodb.UpdateTableInput{
-//		TableName: &tableName,
-//		StreamSpecification: &types.StreamSpecification{
-//			StreamEnabled:  aws.Bool(true),
-//			StreamViewType: types.StreamViewTypeNewAndOldImages,
-//		},
-//	}
-//	_, err := client.UpdateTable(ctx, updateTableInput)
-//	return err
-//}
+func enableStream(ctx context.Context, client *dynamodb.Client, tableName string) error {
+	updateTableInput := &dynamodb.UpdateTableInput{
+		TableName: &tableName,
+		StreamSpecification: &types.StreamSpecification{
+			StreamEnabled:  aws.Bool(true),
+			StreamViewType: types.StreamViewTypeNewAndOldImages,
+		},
+	}
+	_, err := client.UpdateTable(ctx, updateTableInput)
+	return err
+}
