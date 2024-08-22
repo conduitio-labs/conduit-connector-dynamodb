@@ -50,7 +50,7 @@ func TestTeardownSource_NoOpen(t *testing.T) {
 	is.NoErr(err)
 }
 
-func TestTeardownSource_Streams(t *testing.T) {
+func Test_Streams(t *testing.T) {
 	//is := is.New(t)
 	// Set up the AWS session and DynamoDB service client
 	sess, err := config.LoadDefaultConfig(context.Background(),
@@ -85,14 +85,14 @@ func TestTeardownSource_Streams(t *testing.T) {
 	// Create DynamoDB Streams client
 	streamsClient := dynamodbstreams.NewFromConfig(sess)
 	// Get the shard iterator for the stream
-	shardIterator, err := getShardIterator(ctx, streamsClient, *result.Table.LatestStreamArn, stypes.ShardIteratorTypeLatest)
+	shardIterator, err := getShardIterator(ctx, streamsClient, *result.Table.LatestStreamArn, stypes.ShardIteratorTypeTrimHorizon)
 	if err != nil {
 		log.Fatalf("Failed to get shard iterator: %v", err)
 	}
 
 	// continuously poll for new records
 	for {
-		fmt.Println("looping")
+		fmt.Println("loooping")
 		out, err := streamsClient.GetRecords(ctx, &dynamodbstreams.GetRecordsInput{
 			ShardIterator: shardIterator,
 			//Limit:         aws.Int32(1000),
@@ -118,8 +118,8 @@ func TestTeardownSource_Streams(t *testing.T) {
 		}
 
 		// sleep before polling again
-		time.Sleep(time.Second)
-		//time.Sleep(20 * time.Millisecond)
+		//time.Sleep(time.Second)
+		time.Sleep(20 * time.Millisecond)
 	}
 
 }
