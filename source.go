@@ -10,8 +10,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	iterator "github.com/conduitio-labs/conduit-connector-dynamodb/iterators"
 	cconfig "github.com/conduitio/conduit-commons/config"
+	"github.com/conduitio/conduit-commons/lang"
 	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 )
@@ -21,6 +23,7 @@ type Source struct {
 
 	config           SourceConfig
 	dynamoDBClient   *dynamodb.Client
+	streamsClient    *dynamodbstreams.Client
 	lastPositionRead opencdc.Position
 	streamArn        string
 	iterator         *iterator.SnapshotIterator
@@ -28,15 +31,25 @@ type Source struct {
 
 type SourceConfig struct {
 	Table string `json:"table" validate:"required"`
-	Key   string `json:"key" validate:"required"`
-	// add sortKey?
+	// todo get key from table
+	Key string `json:"key" validate:"required"`
+	// todo add sortKey?
 	AWSRegion          string `json:"aws.region" validate:"required"`
 	AWSAccessKeyID     string `json:"aws.accessKeyId" validate:"required"`
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
 }
 
 func NewSource() sdk.Source {
-	return sdk.SourceWithMiddleware(&Source{}, sdk.DefaultSourceMiddleware()...)
+	return sdk.SourceWithMiddleware(
+		&Source{},
+		sdk.DefaultSourceMiddleware(
+			// disable schema extraction by default, because the source produces raw data
+			sdk.SourceWithSchemaExtractionConfig{
+				PayloadEnabled: lang.Ptr(false),
+				KeyEnabled:     lang.Ptr(false),
+			},
+		)...,
+	)
 }
 
 func (s *Source) Parameters() cconfig.Parameters {
@@ -67,43 +80,18 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 	}
 
 	s.dynamoDBClient = dynamodb.NewFromConfig(cfg)
+	s.streamsClient = dynamodbstreams.NewFromConfig(cfg)
 	s.lastPositionRead = pos
-	s.iterator, err = iterator.NewSnapshotIterator(s.config.Table, s.config.Key, s.dynamoDBClient, pos)
+
+	err = s.prepareStream(ctx)
 	if err != nil {
 		return err
 	}
 
-	// Describe the table to get Stream ARN
-	out, err := describeTable(ctx, s.dynamoDBClient, s.config.Table)
+	s.iterator, err = iterator.NewSnapshotIterator(s.config.Table, s.config.Key, s.dynamoDBClient, pos)
 	if err != nil {
-		return fmt.Errorf("error describing table: %w", err)
+		return err
 	}
-
-	if out.Table.LatestStreamArn != nil {
-		sdk.Logger(ctx).Info().Str("LatestStreamArn", *out.Table.LatestStreamArn).Msg("LatestStreamArn found.")
-		s.streamArn = *out.Table.LatestStreamArn
-		return nil
-	}
-
-	sdk.Logger(ctx).Info().Msg("No stream enabled. Enabling stream...")
-
-	// Enable stream if not present
-	if err := enableStream(ctx, s.dynamoDBClient, s.config.Table); err != nil {
-		return fmt.Errorf("failed to enable stream on DynamoDB table: %w", err)
-	}
-
-	// Describe the table again to get the LatestStreamArn
-	out, err = describeTable(ctx, s.dynamoDBClient, s.config.Table)
-	if err != nil {
-		return fmt.Errorf("failed to describe DynamoDB table after enabling stream: %w", err)
-	}
-
-	if out.Table.LatestStreamArn == nil {
-		return fmt.Errorf("stream was not enabled successfully")
-	}
-
-	sdk.Logger(ctx).Info().Str("LatestStreamArn", *out.Table.LatestStreamArn).Msg("Stream enabled successfully.")
-	s.streamArn = *out.Table.LatestStreamArn
 
 	return nil
 }
@@ -148,4 +136,39 @@ func enableStream(ctx context.Context, client *dynamodb.Client, tableName string
 	}
 	_, err := client.UpdateTable(ctx, updateTableInput)
 	return err
+}
+
+func (s *Source) prepareStream(ctx context.Context) error {
+	// Describe the table to get Stream ARN
+	out, err := describeTable(ctx, s.dynamoDBClient, s.config.Table)
+	if err != nil {
+		return fmt.Errorf("error describing table: %w", err)
+	}
+
+	if out.Table.LatestStreamArn != nil {
+		sdk.Logger(ctx).Info().Str("LatestStreamArn", *out.Table.LatestStreamArn).Msg("LatestStreamArn found.")
+		s.streamArn = *out.Table.LatestStreamArn
+		return nil
+	}
+
+	sdk.Logger(ctx).Info().Msg("No stream enabled. Enabling stream...")
+
+	// Enable stream if not present
+	if err := enableStream(ctx, s.dynamoDBClient, s.config.Table); err != nil {
+		return fmt.Errorf("failed to enable stream on DynamoDB table: %w", err)
+	}
+
+	// Describe the table again to get the LatestStreamArn
+	out, err = describeTable(ctx, s.dynamoDBClient, s.config.Table)
+	if err != nil {
+		return fmt.Errorf("failed to describe DynamoDB table after enabling stream: %w", err)
+	}
+
+	if out.Table.LatestStreamArn == nil {
+		return fmt.Errorf("stream was not enabled successfully")
+	}
+
+	sdk.Logger(ctx).Info().Str("LatestStreamArn", *out.Table.LatestStreamArn).Msg("Stream enabled successfully.")
+	s.streamArn = *out.Table.LatestStreamArn
+	return nil
 }

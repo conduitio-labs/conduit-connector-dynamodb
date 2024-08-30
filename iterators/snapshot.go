@@ -88,22 +88,22 @@ func (s *SnapshotIterator) HasNext(ctx context.Context) bool {
 }
 
 // Next returns the next record in the iterator.
-func (s *SnapshotIterator) Next(ctx context.Context) (opencdc.Record, error) {
+func (s *SnapshotIterator) Next(_ context.Context) (opencdc.Record, error) {
 	item := s.items[s.index]
 	s.index++
 
-	// todo: get key name from params
-	key := item[s.key].(*types.AttributeValueMemberS).Value
+	mp := s.getRecMap(item)
+	key := fmt.Sprintf("%v", mp[s.key])
 	// Create the record
 	return sdk.Util.Source.NewRecordSnapshot(
-		opencdc.Position{},
+		opencdc.Position(key),
 		map[string]string{
 			opencdc.MetadataCollection: s.tableName,
 		},
 		opencdc.StructuredData{
-			s.key: key,
+			s.key: mp[s.key],
 		},
-		opencdc.StructuredData(s.getRecMap(item)),
+		opencdc.StructuredData(mp),
 	), nil
 }
 
