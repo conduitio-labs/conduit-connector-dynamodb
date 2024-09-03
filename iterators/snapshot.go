@@ -21,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/conduitio-labs/conduit-connector-dynamodb/position"
 	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 )
@@ -34,22 +35,23 @@ type SnapshotIterator struct {
 	items            []map[string]types.AttributeValue
 	firstIt          bool
 	index            int
+	p                position.Position
 }
 
 // NewSnapshotIterator initializes a SnapshotIterator starting from the provided position.
-func NewSnapshotIterator(tableName string, key string, client *dynamodb.Client, p opencdc.Position) (*SnapshotIterator, error) {
+func NewSnapshotIterator(tableName string, key string, client *dynamodb.Client, p position.Position) (*SnapshotIterator, error) {
 	return &SnapshotIterator{
 		tableName:        tableName,
 		key:              key,
 		client:           client,
 		lastEvaluatedKey: nil,
 		firstIt:          true,
+		p:                p,
 	}, nil
 }
 
 // refreshPage fetches the next page of items from DynamoDB.
 func (s *SnapshotIterator) refreshPage(ctx context.Context) error {
-	fmt.Println("refreshing page")
 	s.items = nil
 	s.index = 0
 
@@ -65,7 +67,6 @@ func (s *SnapshotIterator) refreshPage(ctx context.Context) error {
 
 	s.items = result.Items
 	s.lastEvaluatedKey = result.LastEvaluatedKey
-	fmt.Println("GOT the items: #", len(s.items))
 
 	if len(s.items) == 0 {
 		return sdk.ErrBackoffRetry
@@ -92,18 +93,19 @@ func (s *SnapshotIterator) Next(_ context.Context) (opencdc.Record, error) {
 	item := s.items[s.index]
 	s.index++
 
-	mp := s.getRecMap(item)
-	key := fmt.Sprintf("%v", mp[s.key])
+	newImage := s.getRecMap(item)
+	s.p.Key = fmt.Sprintf("%v", newImage[s.key])
+	s.p.Type = position.TypeSnapshot
 	// Create the record
 	return sdk.Util.Source.NewRecordSnapshot(
-		opencdc.Position(key),
+		s.p.ToRecordPosition(),
 		map[string]string{
 			opencdc.MetadataCollection: s.tableName,
 		},
 		opencdc.StructuredData{
-			s.key: mp[s.key],
+			s.key: newImage[s.key],
 		},
-		opencdc.StructuredData(mp),
+		opencdc.StructuredData(newImage),
 	), nil
 }
 

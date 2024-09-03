@@ -1,3 +1,17 @@
+// Copyright © 2024 Meroxa, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package dynamodb
 
 //go:generate paramgen -output=paramgen_src.go SourceConfig
@@ -12,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	iterator "github.com/conduitio-labs/conduit-connector-dynamodb/iterators"
+	"github.com/conduitio-labs/conduit-connector-dynamodb/position"
 	cconfig "github.com/conduitio/conduit-commons/config"
 	"github.com/conduitio/conduit-commons/lang"
 	"github.com/conduitio/conduit-commons/opencdc"
@@ -26,24 +41,31 @@ type Source struct {
 	streamsClient    *dynamodbstreams.Client
 	lastPositionRead opencdc.Position
 	streamArn        string
-	iterator         *iterator.SnapshotIterator
+	iterator         *iterator.CombinedIterator
 }
 
 type SourceConfig struct {
 	Table string `json:"table" validate:"required"`
 	// todo get key from table
+
 	Key string `json:"key" validate:"required"`
 	// todo add sortKey?
+
 	AWSRegion          string `json:"aws.region" validate:"required"`
 	AWSAccessKeyID     string `json:"aws.accessKeyId" validate:"required"`
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
+}
+
+type Iterator interface {
+	HasNext(ctx context.Context) bool
+	Next(ctx context.Context) (opencdc.Record, error)
+	Stop()
 }
 
 func NewSource() sdk.Source {
 	return sdk.SourceWithMiddleware(
 		&Source{},
 		sdk.DefaultSourceMiddleware(
-			// disable schema extraction by default, because the source produces raw data
 			sdk.SourceWithSchemaExtractionConfig{
 				PayloadEnabled: lang.Ptr(false),
 				KeyEnabled:     lang.Ptr(false),
@@ -88,7 +110,11 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 		return err
 	}
 
-	s.iterator, err = iterator.NewSnapshotIterator(s.config.Table, s.config.Key, s.dynamoDBClient, pos)
+	p, err := position.ParseRecordPosition(pos)
+	if err != nil {
+		return err
+	}
+	s.iterator, err = iterator.NewCombinedIterator(ctx, s.config.Table, s.config.Key, s.dynamoDBClient, s.streamsClient, s.streamArn, p)
 	if err != nil {
 		return err
 	}
@@ -144,8 +170,9 @@ func (s *Source) prepareStream(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error describing table: %w", err)
 	}
+	streamEnabled := *out.Table.StreamSpecification.StreamEnabled
 
-	if out.Table.LatestStreamArn != nil {
+	if out.Table.LatestStreamArn != nil && streamEnabled {
 		sdk.Logger(ctx).Info().Str("LatestStreamArn", *out.Table.LatestStreamArn).Msg("LatestStreamArn found.")
 		s.streamArn = *out.Table.LatestStreamArn
 		return nil

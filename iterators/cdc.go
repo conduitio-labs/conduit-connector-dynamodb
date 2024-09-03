@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	stypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
+	"github.com/conduitio-labs/conduit-connector-dynamodb/position"
 	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"gopkg.in/tomb.v2"
@@ -35,16 +36,16 @@ type CDCIterator struct {
 	streamsClient      *dynamodbstreams.Client
 	lastSequenceNumber *string
 	cache              chan stypes.Record
-	index              int
 	streamArn          string
 	shardIterator      *string
 	shardIndex         int
 	tomb               *tomb.Tomb
 	ticker             *time.Ticker
+	p                  position.Position
 }
 
 // NewCDCIterator initializes a CDCIterator starting from the provided position.
-func NewCDCIterator(ctx context.Context, tableName string, key string, client *dynamodbstreams.Client, streamArn string, p opencdc.Position) (*CDCIterator, error) {
+func NewCDCIterator(ctx context.Context, tableName string, key string, client *dynamodbstreams.Client, streamArn string, p position.Position) (*CDCIterator, error) {
 	c := &CDCIterator{
 		tableName:          tableName,
 		key:                key,
@@ -54,6 +55,7 @@ func NewCDCIterator(ctx context.Context, tableName string, key string, client *d
 		tomb:               &tomb.Tomb{},
 		cache:              make(chan stypes.Record, 10), // todo size?
 		ticker:             time.NewTicker(time.Second),  // todo pollingPeriod
+		p:                  p,
 	}
 	shardIterator, err := c.getShardIterator(ctx)
 	if err != nil {
@@ -84,19 +86,7 @@ func (c *CDCIterator) Next(ctx context.Context) (opencdc.Record, error) {
 		return opencdc.Record{}, ctx.Err()
 	}
 
-	mp := c.getRecMap(rec.Dynamodb.NewImage)
-	key := *rec.Dynamodb.SequenceNumber
-	// Create the record
-	return sdk.Util.Source.NewRecordSnapshot(
-		opencdc.Position(key),
-		map[string]string{
-			opencdc.MetadataCollection: c.tableName,
-		},
-		opencdc.StructuredData{
-			c.key: mp[c.key],
-		},
-		opencdc.StructuredData(c.getRecMap(rec.Dynamodb.NewImage)),
-	), nil
+	return c.getOpenCDCRec(rec)
 }
 
 func (c *CDCIterator) Stop() {
@@ -134,7 +124,6 @@ func (c *CDCIterator) startCDC() error {
 
 			// update the shard iterator
 			c.shardIterator = out.NextShardIterator
-			fmt.Println(c.shardIterator)
 
 			if c.shardIterator == nil {
 				c.shardIterator, err = c.getShardIterator(c.tomb.Context(nil))
@@ -142,7 +131,6 @@ func (c *CDCIterator) startCDC() error {
 					return fmt.Errorf("failed to get shard iterator: %w", err)
 				}
 			}
-
 		}
 	}
 }
@@ -157,14 +145,12 @@ func (c *CDCIterator) getShardIterator(ctx context.Context) (*string, error) {
 		return nil, fmt.Errorf("failed to describe stream: %w", err)
 	}
 
-	fmt.Println("shards count: ", len(describeStreamOutput.StreamDescription.Shards))
 	// Start from the last shard
 	if c.shardIndex == 0 {
 		c.shardIndex = len(describeStreamOutput.StreamDescription.Shards) - 1
 	} else {
 		c.shardIndex++
 	}
-	fmt.Println("shard index: ", c.shardIndex)
 	shardID := describeStreamOutput.StreamDescription.Shards[c.shardIndex].ShardId
 
 	input := &dynamodbstreams.GetShardIteratorInput{
@@ -212,4 +198,50 @@ func (c *CDCIterator) getRecMap(rec map[string]stypes.AttributeValue) map[string
 		}
 	}
 	return stringMap
+}
+
+func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
+	newImage := c.getRecMap(rec.Dynamodb.NewImage)
+	oldImage := c.getRecMap(rec.Dynamodb.OldImage)
+	c.p.Key = *rec.Dynamodb.SequenceNumber
+	c.p.Type = position.TypeCDC
+
+	switch rec.EventName {
+	case stypes.OperationTypeInsert:
+		return sdk.Util.Source.NewRecordCreate(
+			c.p.ToRecordPosition(),
+			map[string]string{
+				opencdc.MetadataCollection: c.tableName,
+			},
+			opencdc.StructuredData{
+				c.key: newImage[c.key],
+			},
+			opencdc.StructuredData(newImage),
+		), nil
+	case stypes.OperationTypeModify:
+		return sdk.Util.Source.NewRecordUpdate(
+			c.p.ToRecordPosition(),
+			map[string]string{
+				opencdc.MetadataCollection: c.tableName,
+			},
+			opencdc.StructuredData{
+				c.key: newImage[c.key],
+			},
+			opencdc.StructuredData(oldImage),
+			opencdc.StructuredData(newImage),
+		), nil
+	case stypes.OperationTypeRemove:
+		return sdk.Util.Source.NewRecordDelete(
+			c.p.ToRecordPosition(),
+			map[string]string{
+				opencdc.MetadataCollection: c.tableName,
+			},
+			opencdc.StructuredData{
+				c.key: newImage[c.key],
+			},
+			opencdc.StructuredData(oldImage),
+		), nil
+	default:
+		return opencdc.Record{}, fmt.Errorf("unknown operation name: %s", rec.EventName)
+	}
 }

@@ -27,7 +27,7 @@ func (SourceConfig) Parameters() map[string]config.Parameter {
 		},
 		SourceConfigAwsRegion: {
 			Default:     "",
-			Description: "todo add sortKey?",
+			Description: "",
 			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{
 				config.ValidationRequired{},
