@@ -167,9 +167,9 @@ func (c *CDCIterator) getShardIterator(ctx context.Context) (*string, error) {
 	return getShardIteratorOutput.ShardIterator, nil
 }
 
-func (c *CDCIterator) getRecMap(rec map[string]stypes.AttributeValue) map[string]interface{} {
+func (c *CDCIterator) getRecMap(item map[string]stypes.AttributeValue) map[string]interface{} {
 	stringMap := make(map[string]interface{})
-	for k, v := range rec {
+	for k, v := range item {
 		switch v := v.(type) {
 		case *stypes.AttributeValueMemberS:
 			stringMap[k] = v.Value
@@ -186,11 +186,19 @@ func (c *CDCIterator) getRecMap(rec map[string]stypes.AttributeValue) map[string
 		case *stypes.AttributeValueMemberBS:
 			stringMap[k] = v.Value
 		case *stypes.AttributeValueMemberM:
-			// todo: flatten
-			stringMap[k] = v.Value
+			// Flatten the map by recursively calling getRecMap
+			nestedMap := c.getRecMap(v.Value)
+			for nestedKey, nestedValue := range nestedMap {
+				flattenedKey := k + "." + nestedKey // Concatenate keys to create a flattened structure
+				stringMap[flattenedKey] = nestedValue
+			}
 		case *stypes.AttributeValueMemberL:
-			// todo: flatten
-			stringMap[k] = v.Value
+			// Flatten the list by processing each item
+			var list []interface{}
+			for _, listItem := range v.Value {
+				list = append(list, c.getRecMap(map[string]stypes.AttributeValue{"": listItem})[""])
+			}
+			stringMap[k] = list
 		case *stypes.AttributeValueMemberNULL:
 			stringMap[k] = nil
 		default:

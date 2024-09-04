@@ -132,11 +132,19 @@ func (s *SnapshotIterator) getRecMap(item map[string]types.AttributeValue) map[s
 		case *types.AttributeValueMemberBS:
 			stringMap[k] = v.Value
 		case *types.AttributeValueMemberM:
-			// todo: flatten
-			stringMap[k] = v.Value
+			// Flatten the map by recursively calling getRecMap
+			nestedMap := s.getRecMap(v.Value)
+			for nestedKey, nestedValue := range nestedMap {
+				flattenedKey := k + "." + nestedKey // Concatenate keys to create a flattened structure
+				stringMap[flattenedKey] = nestedValue
+			}
 		case *types.AttributeValueMemberL:
-			// todo: flatten
-			stringMap[k] = v.Value
+			// Flatten the list by processing each item
+			var list []interface{}
+			for _, listItem := range v.Value {
+				list = append(list, s.getRecMap(map[string]types.AttributeValue{"": listItem})[""])
+			}
+			stringMap[k] = list
 		case *types.AttributeValueMemberNULL:
 			stringMap[k] = nil
 		default:
