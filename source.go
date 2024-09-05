@@ -19,6 +19,8 @@ package dynamodb
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -45,12 +47,11 @@ type Source struct {
 }
 
 type SourceConfig struct {
-	Table string `json:"table" validate:"required"`
 	// todo get key from table
-
-	Key string `json:"key" validate:"required"`
 	// todo add sortKey?
 
+	Table              string `json:"table" validate:"required"`
+	Key                string `json:"key" validate:"required"`
 	AWSRegion          string `json:"aws.region" validate:"required"`
 	AWSAccessKeyID     string `json:"aws.accessKeyId" validate:"required"`
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
@@ -63,15 +64,7 @@ type Iterator interface {
 }
 
 func NewSource() sdk.Source {
-	return sdk.SourceWithMiddleware(
-		&Source{},
-		sdk.DefaultSourceMiddleware(
-			sdk.SourceWithSchemaExtractionConfig{
-				PayloadEnabled: lang.Ptr(false),
-				KeyEnabled:     lang.Ptr(false),
-			},
-		)...,
-	)
+	return sdk.SourceWithMiddleware(&Source{}, sdk.DefaultSourceMiddleware()...)
 }
 
 func (s *Source) Parameters() cconfig.Parameters {
