@@ -30,7 +30,6 @@ import (
 	iterator "github.com/conduitio-labs/conduit-connector-dynamodb/iterators"
 	"github.com/conduitio-labs/conduit-connector-dynamodb/position"
 	cconfig "github.com/conduitio/conduit-commons/config"
-	"github.com/conduitio/conduit-commons/lang"
 	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 )
@@ -163,9 +162,8 @@ func (s *Source) prepareStream(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error describing table: %w", err)
 	}
-	streamEnabled := *out.Table.StreamSpecification.StreamEnabled
 
-	if out.Table.LatestStreamArn != nil && streamEnabled {
+	if out.Table.LatestStreamArn != nil && out.Table.StreamSpecification != nil && aws.ToBool(out.Table.StreamSpecification.StreamEnabled) {
 		sdk.Logger(ctx).Info().Str("LatestStreamArn", *out.Table.LatestStreamArn).Msg("LatestStreamArn found.")
 		s.streamArn = *out.Table.LatestStreamArn
 		return nil
@@ -179,9 +177,9 @@ func (s *Source) prepareStream(ctx context.Context) error {
 	}
 
 	// Describe the table again to get the LatestStreamArn
-	out, err = describeTable(ctx, s.dynamoDBClient, s.config.Table)
+	out, err = s.waitForStreamToBeEnabled(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to describe DynamoDB table after enabling stream: %w", err)
+		return err
 	}
 
 	if out.Table.LatestStreamArn == nil {
@@ -191,4 +189,26 @@ func (s *Source) prepareStream(ctx context.Context) error {
 	sdk.Logger(ctx).Info().Str("LatestStreamArn", *out.Table.LatestStreamArn).Msg("Stream enabled successfully.")
 	s.streamArn = *out.Table.LatestStreamArn
 	return nil
+}
+
+func (s *Source) waitForStreamToBeEnabled(ctx context.Context) (*dynamodb.DescribeTableOutput, error) {
+	sdk.Logger(ctx).Info().Msg("waiting for stream to be enabled...")
+	for {
+		// Describe the table to check stream status
+		describeTableInput := &dynamodb.DescribeTableInput{
+			TableName: aws.String(s.config.Table),
+		}
+
+		describeTableOutput, err := s.dynamoDBClient.DescribeTable(ctx, describeTableInput)
+		if err != nil {
+			return nil, fmt.Errorf("error describing DynamoDB table: %v", err)
+		}
+
+		// Check if the stream is enabled
+		if describeTableOutput.Table.StreamSpecification != nil && aws.ToBool(describeTableOutput.Table.StreamSpecification.StreamEnabled) {
+			return describeTableOutput, nil
+		}
+		// Wait before checking again
+		time.Sleep(2 * time.Second)
+	}
 }
