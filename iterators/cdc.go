@@ -186,12 +186,7 @@ func (c *CDCIterator) getRecMap(item map[string]stypes.AttributeValue) map[strin
 		case *stypes.AttributeValueMemberBS:
 			stringMap[k] = v.Value
 		case *stypes.AttributeValueMemberM:
-			// Flatten the map by recursively calling getRecMap
-			nestedMap := c.getRecMap(v.Value)
-			for nestedKey, nestedValue := range nestedMap {
-				flattenedKey := k + "." + nestedKey // Concatenate keys to create a flattened structure
-				stringMap[flattenedKey] = nestedValue
-			}
+			stringMap[k] = c.getRecMap(v.Value)
 		case *stypes.AttributeValueMemberL:
 			// Flatten the list by processing each item
 			var list []interface{}

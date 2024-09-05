@@ -17,7 +17,6 @@ package iterator
 import (
 	"context"
 	"fmt"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -132,12 +131,7 @@ func (s *SnapshotIterator) getRecMap(item map[string]types.AttributeValue) map[s
 		case *types.AttributeValueMemberBS:
 			stringMap[k] = v.Value
 		case *types.AttributeValueMemberM:
-			// Flatten the map by recursively calling getRecMap
-			nestedMap := s.getRecMap(v.Value)
-			for nestedKey, nestedValue := range nestedMap {
-				flattenedKey := k + "." + nestedKey // Concatenate keys to create a flattened structure
-				stringMap[flattenedKey] = nestedValue
-			}
+			stringMap[k] = s.getRecMap(v.Value)
 		case *types.AttributeValueMemberL:
 			// Flatten the list by processing each item
 			var list []interface{}
