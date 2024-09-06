@@ -12,6 +12,7 @@ const (
 	SourceConfigAwsRegion          = "aws.region"
 	SourceConfigAwsSecretAccessKey = "aws.secretAccessKey"
 	SourceConfigKey                = "key"
+	SourceConfigPollingPeriod      = "pollingPeriod"
 	SourceConfigTable              = "table"
 )
 
@@ -19,7 +20,7 @@ func (SourceConfig) Parameters() map[string]config.Parameter {
 	return map[string]config.Parameter{
 		SourceConfigAwsAccessKeyId: {
 			Default:     "",
-			Description: "",
+			Description: "AWS access key id.",
 			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{
 				config.ValidationRequired{},
@@ -27,7 +28,7 @@ func (SourceConfig) Parameters() map[string]config.Parameter {
 		},
 		SourceConfigAwsRegion: {
 			Default:     "",
-			Description: "",
+			Description: "AWS region.",
 			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{
 				config.ValidationRequired{},
@@ -35,7 +36,7 @@ func (SourceConfig) Parameters() map[string]config.Parameter {
 		},
 		SourceConfigAwsSecretAccessKey: {
 			Default:     "",
-			Description: "",
+			Description: "AWS secret access key.",
 			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{
 				config.ValidationRequired{},
@@ -49,9 +50,15 @@ func (SourceConfig) Parameters() map[string]config.Parameter {
 				config.ValidationRequired{},
 			},
 		},
+		SourceConfigPollingPeriod: {
+			Default:     "1s",
+			Description: "polling period for the CDC mode, formatted as a time.Duration string.",
+			Type:        config.ParameterTypeDuration,
+			Validations: []config.Validation{},
+		},
 		SourceConfigTable: {
 			Default:     "",
-			Description: "",
+			Description: "Table is the DynamoDB table name to pull data from.",
 			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{
 				config.ValidationRequired{},

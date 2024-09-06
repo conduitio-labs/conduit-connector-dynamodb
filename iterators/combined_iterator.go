@@ -18,6 +18,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	"github.com/conduitio-labs/conduit-connector-dynamodb/position"
@@ -34,14 +36,13 @@ type CombinedIterator struct {
 	client        *dynamodb.Client
 	streamsClient *dynamodbstreams.Client
 	streamArn     string
-
-	//pollingPeriod time.Duration
+	pollingPeriod time.Duration
 }
 
 func NewCombinedIterator(
 	ctx context.Context,
 	tableName, key string,
-	//pollingPeriod time.Duration,
+	pollingPeriod time.Duration,
 	client *dynamodb.Client,
 	streamsClient *dynamodbstreams.Client,
 	streamArn string,
@@ -49,9 +50,9 @@ func NewCombinedIterator(
 ) (*CombinedIterator, error) {
 	var err error
 	c := &CombinedIterator{
-		tableName: tableName,
-		key:       key,
-		//pollingPeriod: pollingPeriod,
+		tableName:     tableName,
+		key:           key,
+		pollingPeriod: pollingPeriod,
 		client:        client,
 		streamsClient: streamsClient,
 		streamArn:     streamArn,
@@ -71,7 +72,7 @@ func NewCombinedIterator(
 			return nil, fmt.Errorf("could not create the snapshot iterator: %w", err)
 		}
 	case position.TypeCDC:
-		c.cdcIterator, err = NewCDCIterator(ctx, tableName, key, streamsClient, streamArn, p)
+		c.cdcIterator, err = NewCDCIterator(ctx, tableName, key, pollingPeriod, streamsClient, streamArn, p)
 		if err != nil {
 			return nil, fmt.Errorf("could not create the CDC iterator: %w", err)
 		}
@@ -139,7 +140,7 @@ func (c *CombinedIterator) switchToCDCIterator(ctx context.Context) error {
 	pos := position.Position{
 		Type: position.TypeCDC,
 	}
-	c.cdcIterator, err = NewCDCIterator(ctx, c.tableName, c.key, c.streamsClient, c.streamArn, pos)
+	c.cdcIterator, err = NewCDCIterator(ctx, c.tableName, c.key, c.pollingPeriod, c.streamsClient, c.streamArn, pos)
 	if err != nil {
 		return fmt.Errorf("could not create cdc iterator: %w", err)
 	}

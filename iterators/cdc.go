@@ -45,7 +45,7 @@ type CDCIterator struct {
 }
 
 // NewCDCIterator initializes a CDCIterator starting from the provided position.
-func NewCDCIterator(ctx context.Context, tableName string, key string, client *dynamodbstreams.Client, streamArn string, p position.Position) (*CDCIterator, error) {
+func NewCDCIterator(ctx context.Context, tableName string, key string, pollingPeriod time.Duration, client *dynamodbstreams.Client, streamArn string, p position.Position) (*CDCIterator, error) {
 	c := &CDCIterator{
 		tableName:          tableName,
 		key:                key,
@@ -54,7 +54,7 @@ func NewCDCIterator(ctx context.Context, tableName string, key string, client *d
 		streamArn:          streamArn,
 		tomb:               &tomb.Tomb{},
 		cache:              make(chan stypes.Record, 10), // todo size?
-		ticker:             time.NewTicker(time.Second),  // todo pollingPeriod
+		ticker:             time.NewTicker(pollingPeriod),
 		p:                  p,
 	}
 	shardIterator, err := c.getShardIterator(ctx)

@@ -49,11 +49,17 @@ type SourceConfig struct {
 	// todo get key from table
 	// todo add sortKey?
 
-	Table              string `json:"table" validate:"required"`
-	Key                string `json:"key" validate:"required"`
-	AWSRegion          string `json:"aws.region" validate:"required"`
-	AWSAccessKeyID     string `json:"aws.accessKeyId" validate:"required"`
+	// Table is the DynamoDB table name to pull data from.
+	Table string `json:"table" validate:"required"`
+	Key   string `json:"key" validate:"required"`
+	// AWS region.
+	AWSRegion string `json:"aws.region" validate:"required"`
+	// AWS access key id.
+	AWSAccessKeyID string `json:"aws.accessKeyId" validate:"required"`
+	// AWS secret access key.
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
+	// polling period for the CDC mode, formatted as a time.Duration string.
+	PollingPeriod time.Duration `json:"pollingPeriod" default:"1s"`
 }
 
 type Iterator interface {
@@ -106,7 +112,7 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 	if err != nil {
 		return err
 	}
-	s.iterator, err = iterator.NewCombinedIterator(ctx, s.config.Table, s.config.Key, s.dynamoDBClient, s.streamsClient, s.streamArn, p)
+	s.iterator, err = iterator.NewCombinedIterator(ctx, s.config.Table, s.config.Key, s.config.PollingPeriod, s.dynamoDBClient, s.streamsClient, s.streamArn, p)
 	if err != nil {
 		return err
 	}
