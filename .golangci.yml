@@ -62,7 +62,6 @@ linters:
     - errname
     - errorlint
     - exhaustive
-    - exportloopref
     # - forbidigo
     - forcetypeassert
     - funlen
@@ -74,7 +73,7 @@ linters:
     - goconst
     - gocritic
     - godot
-    - err113
+    # - err113
     - gofmt
     - gofumpt
     - goheader

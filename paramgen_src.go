@@ -11,7 +11,6 @@ const (
 	SourceConfigAwsAccessKeyId     = "aws.accessKeyId"
 	SourceConfigAwsRegion          = "aws.region"
 	SourceConfigAwsSecretAccessKey = "aws.secretAccessKey"
-	SourceConfigKey                = "key"
 	SourceConfigPollingPeriod      = "pollingPeriod"
 	SourceConfigTable              = "table"
 )
@@ -37,14 +36,6 @@ func (SourceConfig) Parameters() map[string]config.Parameter {
 		SourceConfigAwsSecretAccessKey: {
 			Default:     "",
 			Description: "AWS secret access key.",
-			Type:        config.ParameterTypeString,
-			Validations: []config.Validation{
-				config.ValidationRequired{},
-			},
-		},
-		SourceConfigKey: {
-			Default:     "",
-			Description: "",
 			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{
 				config.ValidationRequired{},

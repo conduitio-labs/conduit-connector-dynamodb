@@ -27,7 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
-	iterator "github.com/conduitio-labs/conduit-connector-dynamodb/iterators"
+	"github.com/conduitio-labs/conduit-connector-dynamodb/iterator"
 	"github.com/conduitio-labs/conduit-connector-dynamodb/position"
 	cconfig "github.com/conduitio/conduit-commons/config"
 	"github.com/conduitio/conduit-commons/opencdc"
@@ -46,12 +46,8 @@ type Source struct {
 }
 
 type SourceConfig struct {
-	// todo get key from table
-	// todo add sortKey?
-
 	// Table is the DynamoDB table name to pull data from.
 	Table string `json:"table" validate:"required"`
-	Key   string `json:"key" validate:"required"`
 	// AWS region.
 	AWSRegion string `json:"aws.region" validate:"required"`
 	// AWS access key id.
@@ -60,6 +56,9 @@ type SourceConfig struct {
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
 	// polling period for the CDC mode, formatted as a time.Duration string.
 	PollingPeriod time.Duration `json:"pollingPeriod" default:"1s"`
+
+	partitionKey string
+	sortKey      string
 }
 
 type Iterator interface {
@@ -103,6 +102,10 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 	s.streamsClient = dynamodbstreams.NewFromConfig(cfg)
 	s.lastPositionRead = pos
 
+	s.config.partitionKey, s.config.sortKey, err = s.getKeyNamesFromTable(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting key names from table: %w", err)
+	}
 	err = s.prepareStream(ctx)
 	if err != nil {
 		return err
@@ -110,11 +113,11 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 
 	p, err := position.ParseRecordPosition(pos)
 	if err != nil {
-		return err
+		return fmt.Errorf("error parssing position: %w", err)
 	}
-	s.iterator, err = iterator.NewCombinedIterator(ctx, s.config.Table, s.config.Key, s.config.PollingPeriod, s.dynamoDBClient, s.streamsClient, s.streamArn, p)
+	s.iterator, err = iterator.NewCombinedIterator(ctx, s.config.Table, s.config.partitionKey, s.config.sortKey, s.config.PollingPeriod, s.dynamoDBClient, s.streamsClient, s.streamArn, p)
 	if err != nil {
-		return err
+		return fmt.Errorf("error creating combined iterator: %w", err)
 	}
 
 	return nil
@@ -128,7 +131,7 @@ func (s *Source) Read(ctx context.Context) (opencdc.Record, error) {
 	}
 	r, err := s.iterator.Next(ctx)
 	if err != nil {
-		return opencdc.Record{}, err
+		return opencdc.Record{}, fmt.Errorf("error getting next record: %w", err)
 	}
 	return r, nil
 }
@@ -147,7 +150,11 @@ func describeTable(ctx context.Context, client *dynamodb.Client, tableName strin
 	describeTableInput := &dynamodb.DescribeTableInput{
 		TableName: &tableName,
 	}
-	return client.DescribeTable(ctx, describeTableInput)
+	desc, err := client.DescribeTable(ctx, describeTableInput)
+	if err != nil {
+		return nil, fmt.Errorf("error describing table: %w", err)
+	}
+	return desc, nil
 }
 
 func enableStream(ctx context.Context, client *dynamodb.Client, tableName string) error {
@@ -159,14 +166,14 @@ func enableStream(ctx context.Context, client *dynamodb.Client, tableName string
 		},
 	}
 	_, err := client.UpdateTable(ctx, updateTableInput)
-	return err
+	return fmt.Errorf("failed to enable stream on DynamoDB table: %w", err)
 }
 
 func (s *Source) prepareStream(ctx context.Context) error {
 	// Describe the table to get Stream ARN
 	out, err := describeTable(ctx, s.dynamoDBClient, s.config.Table)
 	if err != nil {
-		return fmt.Errorf("error describing table: %w", err)
+		return err
 	}
 
 	if out.Table.LatestStreamArn != nil && out.Table.StreamSpecification != nil && aws.ToBool(out.Table.StreamSpecification.StreamEnabled) {
@@ -178,8 +185,8 @@ func (s *Source) prepareStream(ctx context.Context) error {
 	sdk.Logger(ctx).Info().Msg("No stream enabled. Enabling stream...")
 
 	// Enable stream if not present
-	if err := enableStream(ctx, s.dynamoDBClient, s.config.Table); err != nil {
-		return fmt.Errorf("failed to enable stream on DynamoDB table: %w", err)
+	if err = enableStream(ctx, s.dynamoDBClient, s.config.Table); err != nil {
+		return err
 	}
 
 	// Describe the table again to get the LatestStreamArn
@@ -207,7 +214,7 @@ func (s *Source) waitForStreamToBeEnabled(ctx context.Context) (*dynamodb.Descri
 
 		describeTableOutput, err := s.dynamoDBClient.DescribeTable(ctx, describeTableInput)
 		if err != nil {
-			return nil, fmt.Errorf("error describing DynamoDB table: %v", err)
+			return nil, fmt.Errorf("error describing DynamoDB table: %w", err)
 		}
 
 		// Check if the stream is enabled
@@ -217,4 +224,23 @@ func (s *Source) waitForStreamToBeEnabled(ctx context.Context) (*dynamodb.Descri
 		// Wait before checking again
 		time.Sleep(2 * time.Second)
 	}
+}
+
+func (s *Source) getKeyNamesFromTable(ctx context.Context) (partitionKey string, sortKey string, err error) {
+	out, err := describeTable(ctx, s.dynamoDBClient, s.config.Table)
+	if err != nil {
+		return "", "", fmt.Errorf("error describing table: %w", err)
+	}
+
+	// Iterate over the key schema to find the key names
+	for _, keySchemaElement := range out.Table.KeySchema {
+		switch keySchemaElement.KeyType {
+		case types.KeyTypeHash:
+			partitionKey = *keySchemaElement.AttributeName
+		case types.KeyTypeRange:
+			sortKey = *keySchemaElement.AttributeName
+		}
+	}
+
+	return partitionKey, sortKey, nil
 }

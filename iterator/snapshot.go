@@ -17,6 +17,7 @@ package iterator
 import (
 	"context"
 	"fmt"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -28,7 +29,8 @@ import (
 // SnapshotIterator to iterate through DynamoDB items in a specific table.
 type SnapshotIterator struct {
 	tableName        string
-	key              string
+	partitionKey     string
+	sortKey          string
 	client           *dynamodb.Client
 	lastEvaluatedKey map[string]types.AttributeValue
 	items            []map[string]types.AttributeValue
@@ -38,10 +40,11 @@ type SnapshotIterator struct {
 }
 
 // NewSnapshotIterator initializes a SnapshotIterator starting from the provided position.
-func NewSnapshotIterator(tableName string, key string, client *dynamodb.Client, p position.Position) (*SnapshotIterator, error) {
+func NewSnapshotIterator(tableName string, pKey string, sKey string, client *dynamodb.Client, p position.Position) (*SnapshotIterator, error) {
 	return &SnapshotIterator{
 		tableName:        tableName,
-		key:              key,
+		partitionKey:     pKey,
+		sortKey:          sKey,
 		client:           client,
 		lastEvaluatedKey: nil,
 		firstIt:          true,
@@ -93,26 +96,41 @@ func (s *SnapshotIterator) Next(_ context.Context) (opencdc.Record, error) {
 	s.index++
 
 	newImage := s.getRecMap(item)
-	s.p.Key = fmt.Sprintf("%v", newImage[s.key])
-	s.p.Type = position.TypeSnapshot
-	// Create the record
-	return sdk.Util.Source.NewRecordSnapshot(
-		s.p.ToRecordPosition(),
-		map[string]string{
-			opencdc.MetadataCollection: s.tableName,
-		},
-		opencdc.StructuredData{
-			s.key: newImage[s.key],
-		},
-		opencdc.StructuredData(newImage),
-	), nil
+	return s.buildOpenCDCRecord(newImage), nil
 }
 
 func (s *SnapshotIterator) Stop() {
 	// nothing to stop
 }
 
-func (s *SnapshotIterator) getRecMap(item map[string]types.AttributeValue) map[string]interface{} {
+func (s *SnapshotIterator) buildOpenCDCRecord(item map[string]interface{}) opencdc.Record {
+	var structuredKey opencdc.StructuredData
+	s.p.Key = fmt.Sprintf("%v", item[s.partitionKey])
+	if s.sortKey != "" {
+		s.p.Key = s.p.Key + "." + fmt.Sprintf("%v", item[s.sortKey])
+		structuredKey = opencdc.StructuredData{
+			s.partitionKey: item[s.partitionKey],
+			s.sortKey:      item[s.sortKey],
+		}
+	} else {
+		structuredKey = opencdc.StructuredData{
+			s.partitionKey: item[s.partitionKey],
+		}
+	}
+	s.p.Type = position.TypeSnapshot
+
+	// Create the record
+	return sdk.Util.Source.NewRecordSnapshot(
+		s.p.ToRecordPosition(),
+		map[string]string{
+			opencdc.MetadataCollection: s.tableName,
+		},
+		structuredKey,
+		opencdc.StructuredData(item),
+	)
+}
+
+func (s *SnapshotIterator) getRecMap(item map[string]types.AttributeValue) map[string]interface{} { //nolint:dupl // different types
 	stringMap := make(map[string]interface{})
 	for k, v := range item {
 		switch v := v.(type) {

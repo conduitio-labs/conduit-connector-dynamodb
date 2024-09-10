@@ -32,7 +32,8 @@ import (
 // CDCIterator iterates through the table's stream.
 type CDCIterator struct {
 	tableName          string
-	key                string
+	partitionKey       string
+	sortKey            string
 	streamsClient      *dynamodbstreams.Client
 	lastSequenceNumber *string
 	cache              chan stypes.Record
@@ -45,10 +46,11 @@ type CDCIterator struct {
 }
 
 // NewCDCIterator initializes a CDCIterator starting from the provided position.
-func NewCDCIterator(ctx context.Context, tableName string, key string, pollingPeriod time.Duration, client *dynamodbstreams.Client, streamArn string, p position.Position) (*CDCIterator, error) {
+func NewCDCIterator(ctx context.Context, tableName string, pKey string, sKey string, pollingPeriod time.Duration, client *dynamodbstreams.Client, streamArn string, p position.Position) (*CDCIterator, error) {
 	c := &CDCIterator{
 		tableName:          tableName,
-		key:                key,
+		partitionKey:       pKey,
+		sortKey:            sKey,
 		streamsClient:      client,
 		lastSequenceNumber: nil,
 		streamArn:          streamArn,
@@ -81,7 +83,7 @@ func (c *CDCIterator) Next(ctx context.Context) (opencdc.Record, error) {
 	case r := <-c.cache:
 		rec = r
 	case <-c.tomb.Dead():
-		return opencdc.Record{}, c.tomb.Err()
+		return opencdc.Record{}, fmt.Errorf("tomb is dead: %w", c.tomb.Err())
 	case <-ctx.Done():
 		return opencdc.Record{}, ctx.Err()
 	}
@@ -103,13 +105,13 @@ func (c *CDCIterator) startCDC() error {
 	for {
 		select {
 		case <-c.tomb.Dying():
-			return c.tomb.Err()
+			return fmt.Errorf("tomb is dying: %w", c.tomb.Err())
 		case <-c.ticker.C: // detect changes every polling period
-			out, err := c.streamsClient.GetRecords(c.tomb.Context(nil), &dynamodbstreams.GetRecordsInput{
+			out, err := c.streamsClient.GetRecords(c.tomb.Context(nil), &dynamodbstreams.GetRecordsInput{ //nolint:staticcheck // SA1012 tomb expects nil
 				ShardIterator: c.shardIterator,
 			})
 			if err != nil {
-				return err
+				return fmt.Errorf("error getting records: %w", err)
 			}
 
 			// process the stream records
@@ -118,7 +120,7 @@ func (c *CDCIterator) startCDC() error {
 				case c.cache <- record:
 					// Successfully sent record
 				case <-c.tomb.Dying():
-					return c.tomb.Err()
+					return fmt.Errorf("tomb is dying: %w", c.tomb.Err())
 				}
 			}
 
@@ -126,7 +128,7 @@ func (c *CDCIterator) startCDC() error {
 			c.shardIterator = out.NextShardIterator
 
 			if c.shardIterator == nil {
-				c.shardIterator, err = c.getShardIterator(c.tomb.Context(nil))
+				c.shardIterator, err = c.getShardIterator(c.tomb.Context(nil)) //nolint:staticcheck // SA1012 tomb expects nil
 				if err != nil {
 					return fmt.Errorf("failed to get shard iterator: %w", err)
 				}
@@ -167,7 +169,7 @@ func (c *CDCIterator) getShardIterator(ctx context.Context) (*string, error) {
 	return getShardIteratorOutput.ShardIterator, nil
 }
 
-func (c *CDCIterator) getRecMap(item map[string]stypes.AttributeValue) map[string]interface{} {
+func (c *CDCIterator) getRecMap(item map[string]stypes.AttributeValue) map[string]interface{} { //nolint:dupl // different types
 	stringMap := make(map[string]interface{})
 	for k, v := range item {
 		switch v := v.(type) {
@@ -206,9 +208,28 @@ func (c *CDCIterator) getRecMap(item map[string]stypes.AttributeValue) map[strin
 func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
 	newImage := c.getRecMap(rec.Dynamodb.NewImage)
 	oldImage := c.getRecMap(rec.Dynamodb.OldImage)
+
+	image := newImage
+	// use the old image to get the deleted record's keys
+	if rec.EventName == stypes.OperationTypeRemove {
+		image = oldImage
+	}
+
+	// prepare key and position
+	structuredKey := opencdc.StructuredData{
+		c.partitionKey: image[c.partitionKey],
+	}
 	c.p.Key = *rec.Dynamodb.SequenceNumber
 	c.p.Type = position.TypeCDC
+	if c.sortKey != "" {
+		c.p.Key = c.p.Key + "." + fmt.Sprintf("%v", image[c.sortKey])
+		structuredKey = opencdc.StructuredData{
+			c.partitionKey: image[c.partitionKey],
+			c.sortKey:      image[c.sortKey],
+		}
+	}
 
+	// build the record depending on the event's operation
 	switch rec.EventName {
 	case stypes.OperationTypeInsert:
 		return sdk.Util.Source.NewRecordCreate(
@@ -216,9 +237,7 @@ func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
 			map[string]string{
 				opencdc.MetadataCollection: c.tableName,
 			},
-			opencdc.StructuredData{
-				c.key: newImage[c.key],
-			},
+			structuredKey,
 			opencdc.StructuredData(newImage),
 		), nil
 	case stypes.OperationTypeModify:
@@ -227,9 +246,7 @@ func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
 			map[string]string{
 				opencdc.MetadataCollection: c.tableName,
 			},
-			opencdc.StructuredData{
-				c.key: newImage[c.key],
-			},
+			structuredKey,
 			opencdc.StructuredData(oldImage),
 			opencdc.StructuredData(newImage),
 		), nil
@@ -239,9 +256,7 @@ func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
 			map[string]string{
 				opencdc.MetadataCollection: c.tableName,
 			},
-			opencdc.StructuredData{
-				c.key: newImage[c.key],
-			},
+			structuredKey,
 			opencdc.StructuredData(oldImage),
 		), nil
 	default:
