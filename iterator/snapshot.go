@@ -48,10 +48,11 @@ func NewSnapshotIterator(tableName string, pKey string, sKey string, client *dyn
 		client:           client,
 		lastEvaluatedKey: nil,
 		firstIt:          true,
-		p:                p, // todo continue snapshot from where it stopped in case of a pipeline restart
+		p:                p,
 	}, nil
 }
 
+// todo can use dynamodb ScanPaginator instead
 // refreshPage fetches the next page of items from DynamoDB.
 func (s *SnapshotIterator) refreshPage(ctx context.Context) error {
 	s.items = nil
