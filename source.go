@@ -56,9 +56,6 @@ type SourceConfig struct {
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
 	// polling period for the CDC mode, formatted as a time.Duration string.
 	PollingPeriod time.Duration `json:"pollingPeriod" default:"1s"`
-
-	partitionKey string
-	sortKey      string
 }
 
 type Iterator interface {
@@ -77,13 +74,10 @@ func (s *Source) Parameters() cconfig.Parameters {
 
 func (s *Source) Configure(ctx context.Context, cfg cconfig.Config) error {
 	sdk.Logger(ctx).Info().Msg("Configuring DynamoDB Source...")
-	var sourceConfig SourceConfig
-	err := sdk.Util.ParseConfig(ctx, cfg, &sourceConfig, NewSource().Parameters())
+	err := sdk.Util.ParseConfig(ctx, cfg, &s.config, NewSource().Parameters())
 	if err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
-	s.config = sourceConfig
-
 	return nil
 }
 
@@ -102,7 +96,7 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 	s.streamsClient = dynamodbstreams.NewFromConfig(cfg)
 	s.lastPositionRead = pos
 
-	s.config.partitionKey, s.config.sortKey, err = s.getKeyNamesFromTable(ctx)
+	partitionKey, sortKey, err := s.getKeyNamesFromTable(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting key names from table: %w", err)
 	}
@@ -115,7 +109,7 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 	if err != nil {
 		return fmt.Errorf("error parssing position: %w", err)
 	}
-	s.iterator, err = iterator.NewCombinedIterator(ctx, s.config.Table, s.config.partitionKey, s.config.sortKey, s.config.PollingPeriod, s.dynamoDBClient, s.streamsClient, s.streamArn, p)
+	s.iterator, err = iterator.NewCombinedIterator(ctx, s.config.Table, partitionKey, sortKey, s.config.PollingPeriod, s.dynamoDBClient, s.streamsClient, s.streamArn, p)
 	if err != nil {
 		return fmt.Errorf("error creating combined iterator: %w", err)
 	}

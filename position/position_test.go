@@ -29,7 +29,7 @@ func Test_ParseRecordPosition(t *testing.T) {
 		out     Position
 	}{
 		{
-			name:    "zero position",
+			name:    "snapshot position",
 			wantErr: false,
 			in:      []byte("test_s"),
 			out: Position{
@@ -47,6 +47,12 @@ func Test_ParseRecordPosition(t *testing.T) {
 			name:    "wrong position format returns error",
 			wantErr: true,
 			in:      []byte("test"),
+			out:     Position{},
+		},
+		{
+			name:    "empty position returns error",
+			wantErr: true,
+			in:      []byte(""),
 			out:     Position{},
 		},
 		{
