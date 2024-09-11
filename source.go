@@ -210,6 +210,7 @@ func (s *Source) prepareStream(ctx context.Context) error {
 	return nil
 }
 
+// todo: this method doesn't work as expected, stream is created but not ready to fetch data from yet.
 func (s *Source) waitForStreamToBeEnabled(ctx context.Context) (*dynamodb.DescribeTableOutput, error) {
 	sdk.Logger(ctx).Info().Msg("waiting for stream to be enabled...")
 	for {

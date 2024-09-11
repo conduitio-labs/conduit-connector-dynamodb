@@ -57,7 +57,7 @@ func NewCDCIterator(ctx context.Context, tableName string, pKey string, sKey str
 		tomb:               &tomb.Tomb{},
 		cache:              make(chan stypes.Record, 10), // todo size?
 		ticker:             time.NewTicker(pollingPeriod),
-		p:                  p,
+		p:                  p, // todo position handling when pipeline is restarted
 	}
 	shardIterator, err := c.getShardIterator(ctx)
 	if err != nil {

@@ -48,7 +48,7 @@ func NewSnapshotIterator(tableName string, pKey string, sKey string, client *dyn
 		client:           client,
 		lastEvaluatedKey: nil,
 		firstIt:          true,
-		p:                p,
+		p:                p, // todo continue snapshot from where it stopped in case of a pipeline restart
 	}, nil
 }
 
