@@ -12,6 +12,7 @@ const (
 	SourceConfigAwsRegion          = "aws.region"
 	SourceConfigAwsSecretAccessKey = "aws.secretAccessKey"
 	SourceConfigPollingPeriod      = "pollingPeriod"
+	SourceConfigSkipSnapshot       = "skipSnapshot"
 	SourceConfigTable              = "table"
 )
 
@@ -45,6 +46,12 @@ func (SourceConfig) Parameters() map[string]config.Parameter {
 			Default:     "1s",
 			Description: "polling period for the CDC mode, formatted as a time.Duration string.",
 			Type:        config.ParameterTypeDuration,
+			Validations: []config.Validation{},
+		},
+		SourceConfigSkipSnapshot: {
+			Default:     "false",
+			Description: "skipSnapshot determines weather to skip the snapshot or not.",
+			Type:        config.ParameterTypeBool,
 			Validations: []config.Validation{},
 		},
 		SourceConfigTable: {

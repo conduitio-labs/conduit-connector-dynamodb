@@ -42,7 +42,7 @@ type Source struct {
 	streamsClient    *dynamodbstreams.Client
 	lastPositionRead opencdc.Position
 	streamArn        string
-	iterator         *iterator.CombinedIterator
+	iterator         Iterator
 }
 
 type SourceConfig struct {
@@ -56,6 +56,8 @@ type SourceConfig struct {
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
 	// polling period for the CDC mode, formatted as a time.Duration string.
 	PollingPeriod time.Duration `json:"pollingPeriod" default:"1s"`
+	// skipSnapshot determines weather to skip the snapshot or not.
+	SkipSnapshot bool `json:"skipSnapshot" default:"false"`
 }
 
 type Iterator interface {
@@ -109,11 +111,21 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 	if err != nil {
 		return fmt.Errorf("error parssing position: %w", err)
 	}
-	s.iterator, err = iterator.NewCombinedIterator(ctx, s.config.Table, partitionKey, sortKey, s.config.PollingPeriod, s.dynamoDBClient, s.streamsClient, s.streamArn, p)
-	if err != nil {
-		return fmt.Errorf("error creating combined iterator: %w", err)
-	}
 
+	// create the needed iterator
+	var itr Iterator
+	if s.config.SkipSnapshot {
+		itr, err = iterator.NewCDCIterator(ctx, s.config.Table, partitionKey, sortKey, s.config.PollingPeriod, s.streamsClient, s.streamArn, p)
+		if err != nil {
+			return fmt.Errorf("error creating CDC iterator: %w", err)
+		}
+	} else {
+		itr, err = iterator.NewCombinedIterator(ctx, s.config.Table, partitionKey, sortKey, s.config.PollingPeriod, s.dynamoDBClient, s.streamsClient, s.streamArn, p)
+		if err != nil {
+			return fmt.Errorf("error creating combined iterator: %w", err)
+		}
+	}
+	s.iterator = itr
 	return nil
 }
 
