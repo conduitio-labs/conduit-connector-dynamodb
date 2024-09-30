@@ -208,7 +208,6 @@ func (c *CDCIterator) getRecMap(item map[string]stypes.AttributeValue) map[strin
 func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
 	newImage := c.getRecMap(rec.Dynamodb.NewImage)
 	oldImage := c.getRecMap(rec.Dynamodb.OldImage)
-
 	image := newImage
 	// use the old image to get the deleted record's keys
 	if rec.EventName == stypes.OperationTypeRemove {
@@ -220,7 +219,7 @@ func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
 		c.partitionKey: image[c.partitionKey],
 	}
 	c.p.Key = *rec.Dynamodb.SequenceNumber
-	c.p.Type = position.TypeCDC
+	c.p.IteratorType = position.TypeCDC
 	if c.sortKey != "" {
 		c.p.Key = c.p.Key + "." + fmt.Sprintf("%v", image[c.sortKey])
 		structuredKey = opencdc.StructuredData{
@@ -228,12 +227,17 @@ func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
 			c.sortKey:      image[c.sortKey],
 		}
 	}
+	c.p.Time = time.Now()
+	pos, err := c.p.ToRecordPosition()
+	if err != nil {
+		return opencdc.Record{}, fmt.Errorf("failed to build record's CDC position: %w", err)
+	}
 
 	// build the record depending on the event's operation
 	switch rec.EventName {
 	case stypes.OperationTypeInsert:
 		return sdk.Util.Source.NewRecordCreate(
-			c.p.ToRecordPosition(),
+			pos,
 			map[string]string{
 				opencdc.MetadataCollection: c.tableName,
 			},
@@ -242,7 +246,7 @@ func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
 		), nil
 	case stypes.OperationTypeModify:
 		return sdk.Util.Source.NewRecordUpdate(
-			c.p.ToRecordPosition(),
+			pos,
 			map[string]string{
 				opencdc.MetadataCollection: c.tableName,
 			},
@@ -252,7 +256,7 @@ func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
 		), nil
 	case stypes.OperationTypeRemove:
 		return sdk.Util.Source.NewRecordDelete(
-			c.p.ToRecordPosition(),
+			pos,
 			map[string]string{
 				opencdc.MetadataCollection: c.tableName,
 			},

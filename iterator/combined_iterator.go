@@ -60,12 +60,11 @@ func NewCombinedIterator(
 		streamArn:     streamArn,
 	}
 
-	switch p.Type {
+	switch p.IteratorType {
 	case position.TypeSnapshot:
 		if len(p.Key) != 0 {
 			sdk.Logger(ctx).
 				Warn().
-				Str("position", string(p.ToRecordPosition())).
 				Msg("previous snapshot did not complete successfully. snapshot will be restarted for consistency.")
 		}
 		p = position.Position{} // always start snapshot from the beginning, so position is nil
@@ -79,7 +78,7 @@ func NewCombinedIterator(
 			return nil, fmt.Errorf("could not create the CDC iterator: %w", err)
 		}
 	default:
-		return nil, fmt.Errorf("invalid position type (%d)", p.Type)
+		return nil, fmt.Errorf("invalid position type (%d)", p.IteratorType)
 	}
 	return c, nil
 }
@@ -140,7 +139,7 @@ func (c *CombinedIterator) Stop() {
 func (c *CombinedIterator) switchToCDCIterator(ctx context.Context) error {
 	var err error
 	pos := position.Position{
-		Type: position.TypeCDC,
+		IteratorType: position.TypeCDC,
 	}
 	c.cdcIterator, err = NewCDCIterator(ctx, c.tableName, c.partitionKey, c.sortKey, c.pollingPeriod, c.streamsClient, c.streamArn, pos)
 	if err != nil {

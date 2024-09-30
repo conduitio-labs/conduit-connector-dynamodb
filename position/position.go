@@ -15,68 +15,68 @@
 package position
 
 import (
-	"errors"
+	"encoding/json"
 	"fmt"
-	"strings"
+	"time"
 
 	"github.com/conduitio/conduit-commons/opencdc"
 )
 
 const (
-	TypeSnapshot Type = iota
+	TypeSnapshot IteratorType = iota
 	TypeCDC
 )
 
-const (
-	snapshotPrefixChar = 's'
-	cdcPrefixChar      = 'c'
-)
-
-type Type int
+type IteratorType int
 
 type Position struct {
-	Type Type
-	Key  string
+	IteratorType IteratorType `json:"iterator_type"`
+
+	// the record's key, for the snapshot iterator
+	Key string `json:"key"`
+
+	// the record's sequence number in the stream, for the CDC iterator.
+	SequenceNumber string `json:"sequence_number"`
+
+	Time time.Time `json:"time"`
 }
 
+// ParseRecordPosition parses SDK position and returns Position.
 func ParseRecordPosition(p opencdc.Position) (Position, error) {
+	var pos Position
+
 	if p == nil {
-		// empty Position would have the fields with their default values
 		return Position{}, nil
 	}
-	s := string(p)
-	index := strings.LastIndex(s, "_")
-	if index == -1 {
-		return Position{}, errors.New("invalid position format, no '_' found")
+
+	err := json.Unmarshal(p, &pos)
+	if err != nil {
+		return Position{}, fmt.Errorf("error unmarshalling position: %w", err)
 	}
 
-	if s[index+1] != cdcPrefixChar && s[index+1] != snapshotPrefixChar {
-		return Position{}, fmt.Errorf("invalid position format, no '%c' or '%c' after '_'", snapshotPrefixChar, cdcPrefixChar)
+	switch pos.IteratorType {
+	case TypeSnapshot, TypeCDC:
+		return pos, nil
+	default:
+		return pos, fmt.Errorf("unknown iterator type")
 	}
-	pType := TypeSnapshot
-	if s[index+1] == cdcPrefixChar {
-		pType = TypeCDC
-	}
-
-	return Position{
-		Key:  s[:index],
-		Type: pType,
-	}, nil
 }
 
-func (p Position) ToRecordPosition() opencdc.Position {
-	char := snapshotPrefixChar
-	if p.Type == TypeCDC {
-		char = cdcPrefixChar
+// ToRecordPosition formats and returns opencdc.Position.
+func (p Position) ToRecordPosition() (opencdc.Position, error) {
+	b, err := json.Marshal(p)
+	if err != nil {
+		return opencdc.Position{}, fmt.Errorf("could not marshal position: %w", err)
 	}
-	return []byte(fmt.Sprintf("%s_%c", p.Key, char))
+
+	return b, nil
 }
 
 func ConvertToCDCPosition(p opencdc.Position) (opencdc.Position, error) {
 	cdcPos, err := ParseRecordPosition(p)
 	if err != nil {
-		return opencdc.Position{}, err
+		return opencdc.Position{}, fmt.Errorf("could not convert position: %w", err)
 	}
-	cdcPos.Type = TypeCDC
-	return cdcPos.ToRecordPosition(), nil
+	cdcPos.IteratorType = TypeCDC
+	return cdcPos.ToRecordPosition()
 }

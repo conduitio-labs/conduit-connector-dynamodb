@@ -15,148 +15,62 @@
 package position
 
 import (
-	"bytes"
+	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/conduitio/conduit-commons/opencdc"
+	"github.com/matryer/is"
 )
 
-func Test_ParseRecordPosition(t *testing.T) {
-	positionTests := []struct {
-		name    string
-		wantErr bool
-		in      opencdc.Position
-		out     Position
+func TestParseSDKPosition(t *testing.T) {
+	validPosition := Position{
+		IteratorType:   TypeCDC,
+		Key:            "key",
+		SequenceNumber: "my-sequence-number",
+		Time:           time.Time{},
+	}
+
+	wrongPosType := Position{
+		IteratorType:   3, // non-existent type
+		Key:            "key",
+		SequenceNumber: "my-sequence-number",
+	}
+	is := is.New(t)
+	posBytes, err := json.Marshal(validPosition)
+	is.NoErr(err)
+
+	wrongPosBytes, err := json.Marshal(wrongPosType)
+	is.NoErr(err)
+
+	tests := []struct {
+		name        string
+		in          opencdc.Position
+		want        Position
+		expectedErr string
 	}{
 		{
-			name:    "snapshot position",
-			wantErr: false,
-			in:      []byte("test_s"),
-			out: Position{
-				Key:  "test",
-				Type: TypeSnapshot,
-			},
+			name: "valid position",
+			in:   opencdc.Position(posBytes),
+			want: validPosition,
 		},
 		{
-			name:    "nil position returns empty Position with default values",
-			wantErr: false,
-			in:      nil,
-			out:     Position{},
-		},
-		{
-			name:    "wrong position format returns error",
-			wantErr: true,
-			in:      []byte("test"),
-			out:     Position{},
-		},
-		{
-			name:    "empty position returns error",
-			wantErr: true,
-			in:      []byte(""),
-			out:     Position{},
-		},
-		{
-			name:    "cdc type position",
-			wantErr: false,
-			in:      []byte("test_c"),
-			out: Position{
-				Key:  "test",
-				Type: TypeCDC,
-			},
-		},
-		{
-			name:    "invalid timestamp returns error",
-			wantErr: true,
-			in:      []byte("test_invalid"),
-			out:     Position{},
+			name:        "unknown iterator type",
+			in:          opencdc.Position(wrongPosBytes),
+			expectedErr: "unknown iterator type",
 		},
 	}
 
-	for _, tt := range positionTests {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p, err := ParseRecordPosition(tt.in)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ParseRecordPosition() error = %v, wantErr %v", err, tt.wantErr)
-			} else if p != tt.out {
-				t.Errorf("ParseRecordPosition(): Got : %v,Expected : %v", p, tt.out)
-			}
-		})
-	}
-}
-
-func Test_ToRecordPosition(t *testing.T) {
-	positionTests := []struct {
-		name    string
-		wantErr bool
-		in      Position
-		out     opencdc.Position
-	}{
-		{
-			name:    "zero position",
-			wantErr: false,
-			in: Position{
-				Key:  "test",
-				Type: TypeSnapshot,
-			},
-			out: []byte("test_s"),
-		},
-		{
-			name:    "empty position returns the zero value for time.Time",
-			wantErr: false,
-			in:      Position{},
-			out:     []byte("_s"),
-		},
-		{
-			name:    "cdc type position",
-			wantErr: false,
-			in: Position{
-				Key:  "test",
-				Type: TypeCDC,
-			},
-			out: []byte("test_c"),
-		},
-	}
-
-	for _, tt := range positionTests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := (tt.in).ToRecordPosition()
-			if !bytes.Equal(p, tt.out) {
-				t.Errorf("ToRecordPosition(): Got : %v,Expected : %v", p, tt.out)
+			is := is.New(t)
+			got, err := ParseRecordPosition(tt.in)
+			if err != nil {
+				is.Equal(err.Error(), tt.expectedErr)
 				return
 			}
-		})
-	}
-}
-
-func Test_ConvertSnapshotPositionToCDC(t *testing.T) {
-	positionTests := []struct {
-		name    string
-		wantErr bool
-		in      opencdc.Position
-		out     opencdc.Position
-	}{
-		{
-			name:    "convert snapshot position to cdc",
-			wantErr: false,
-			in:      []byte("test_s"),
-			out:     []byte("test_c"),
-		},
-		{
-			name:    "convert invalid snapshot should produce error",
-			wantErr: true,
-			in:      []byte("s"),
-			out:     []byte(""),
-		},
-	}
-
-	for _, tt := range positionTests {
-		t.Run(tt.name, func(t *testing.T) {
-			p, err := ConvertToCDCPosition(tt.in)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ConvertToCDCPosition() error = %v, wantErr %v", err, tt.wantErr)
-			} else if !bytes.Equal(p, tt.out) {
-				t.Errorf("ConvertToCDCPosition(): Got : %v,Expected : %v", p, tt.out)
-			}
+			got.Time = time.Time{}
+			is.Equal(got, tt.want)
 		})
 	}
 }

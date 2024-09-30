@@ -17,6 +17,7 @@ package iterator
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -97,14 +98,14 @@ func (s *SnapshotIterator) Next(_ context.Context) (opencdc.Record, error) {
 	s.index++
 
 	newImage := s.getRecMap(item)
-	return s.buildOpenCDCRecord(newImage), nil
+	return s.buildOpenCDCRecord(newImage)
 }
 
 func (s *SnapshotIterator) Stop() {
 	// nothing to stop
 }
 
-func (s *SnapshotIterator) buildOpenCDCRecord(item map[string]interface{}) opencdc.Record {
+func (s *SnapshotIterator) buildOpenCDCRecord(item map[string]interface{}) (opencdc.Record, error) {
 	var structuredKey opencdc.StructuredData
 	s.p.Key = fmt.Sprintf("%v", item[s.partitionKey])
 	if s.sortKey != "" {
@@ -118,17 +119,22 @@ func (s *SnapshotIterator) buildOpenCDCRecord(item map[string]interface{}) openc
 			s.partitionKey: item[s.partitionKey],
 		}
 	}
-	s.p.Type = position.TypeSnapshot
+	s.p.IteratorType = position.TypeSnapshot
+	s.p.Time = time.Now()
+	pos, err := s.p.ToRecordPosition()
+	if err != nil {
+		return opencdc.Record{}, fmt.Errorf("error building snapshot position: %w", err)
+	}
 
 	// Create the record
 	return sdk.Util.Source.NewRecordSnapshot(
-		s.p.ToRecordPosition(),
+		pos,
 		map[string]string{
 			opencdc.MetadataCollection: s.tableName,
 		},
 		structuredKey,
 		opencdc.StructuredData(item),
-	)
+	), nil
 }
 
 func (s *SnapshotIterator) getRecMap(item map[string]types.AttributeValue) map[string]interface{} { //nolint:dupl // different types
