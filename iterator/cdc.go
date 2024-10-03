@@ -31,33 +31,31 @@ import (
 
 // CDCIterator iterates through the table's stream.
 type CDCIterator struct {
-	tableName          string
-	partitionKey       string
-	sortKey            string
-	streamsClient      *dynamodbstreams.Client
-	lastSequenceNumber *string
-	cache              chan stypes.Record
-	streamArn          string
-	shardIterator      *string
-	shardIndex         int
-	tomb               *tomb.Tomb
-	ticker             *time.Ticker
-	p                  position.Position
+	tableName     string
+	partitionKey  string
+	sortKey       string
+	streamsClient *dynamodbstreams.Client
+	cache         chan stypes.Record
+	streamArn     string
+	shardIterator *string
+	shardIndex    int
+	tomb          *tomb.Tomb
+	ticker        *time.Ticker
+	p             position.Position
 }
 
 // NewCDCIterator initializes a CDCIterator starting from the provided position.
 func NewCDCIterator(ctx context.Context, tableName string, pKey string, sKey string, pollingPeriod time.Duration, client *dynamodbstreams.Client, streamArn string, p position.Position) (*CDCIterator, error) {
 	c := &CDCIterator{
-		tableName:          tableName,
-		partitionKey:       pKey,
-		sortKey:            sKey,
-		streamsClient:      client,
-		lastSequenceNumber: nil,
-		streamArn:          streamArn,
-		tomb:               &tomb.Tomb{},
-		cache:              make(chan stypes.Record, 10), // todo size?
-		ticker:             time.NewTicker(pollingPeriod),
-		p:                  p, // todo position handling when pipeline is restarted
+		tableName:     tableName,
+		partitionKey:  pKey,
+		sortKey:       sKey,
+		streamsClient: client,
+		streamArn:     streamArn,
+		tomb:          &tomb.Tomb{},
+		cache:         make(chan stypes.Record, 10), // todo size?
+		ticker:        time.NewTicker(pollingPeriod),
+		p:             p,
 	}
 	shardIterator, err := c.getShardIterator(ctx)
 	if err != nil {
@@ -107,6 +105,7 @@ func (c *CDCIterator) startCDC() error {
 		case <-c.tomb.Dying():
 			return fmt.Errorf("tomb is dying: %w", c.tomb.Err())
 		case <-c.ticker.C: // detect changes every polling period
+			// todo loop for more than 1000 records
 			out, err := c.streamsClient.GetRecords(c.tomb.Context(nil), &dynamodbstreams.GetRecordsInput{ //nolint:staticcheck // SA1012 tomb expects nil
 				ShardIterator: c.shardIterator,
 			})
@@ -128,7 +127,7 @@ func (c *CDCIterator) startCDC() error {
 			c.shardIterator = out.NextShardIterator
 
 			if c.shardIterator == nil {
-				c.shardIterator, err = c.getShardIterator(c.tomb.Context(nil)) //nolint:staticcheck // SA1012 tomb expects nil
+				c.shardIterator, err = c.moveToNextShard(c.tomb.Context(nil)) //nolint:staticcheck // SA1012 tomb expects nil
 				if err != nil {
 					return fmt.Errorf("failed to get shard iterator: %w", err)
 				}
@@ -137,9 +136,12 @@ func (c *CDCIterator) startCDC() error {
 	}
 }
 
-// getShardIterator gets the shard iterator for the stream.
+// getShardIterator gets the shard iterator for the stream depending on the position.
+// if position is nil, it starts from the last shard with the "LATEST" iterator type.
+// if position has a sequence number, it starts from the shard containing that sequence number, with the "AFTER_SEQUENCE_NUMBER" iterator type.
+// if the given sequence number was not found (expired) or was at the end of the shard, then we start from the following shard to it, with the "TRIM_HORIZON" iterator type.
 func (c *CDCIterator) getShardIterator(ctx context.Context) (*string, error) {
-	// Describe the stream to get the shard ID
+	// describe the stream to get the shard ID.
 	describeStreamOutput, err := c.streamsClient.DescribeStream(ctx, &dynamodbstreams.DescribeStreamInput{
 		StreamArn: aws.String(c.streamArn),
 	})
@@ -147,26 +149,89 @@ func (c *CDCIterator) getShardIterator(ctx context.Context) (*string, error) {
 		return nil, fmt.Errorf("failed to describe stream: %w", err)
 	}
 
-	// Start from the last shard
-	if c.shardIndex == 0 {
-		c.shardIndex = len(describeStreamOutput.StreamDescription.Shards) - 1
-	} else {
-		c.shardIndex++
+	shards := describeStreamOutput.StreamDescription.Shards
+	if len(shards) == 0 {
+		return nil, errors.New("no shards found in the stream")
 	}
-	shardID := describeStreamOutput.StreamDescription.Shards[c.shardIndex].ShardId
 
+	var selectedShardID string
+	shardIteratorType := stypes.ShardIteratorTypeLatest
+	// If position has a sequence number, find the shard containing it
+	if c.p.SequenceNumber != "" {
+		for i, shard := range shards {
+			// if the sequence number is at the end of the shard, save the index od the shard to use with the "TRIM_HORIZON" case.
+			if shard.SequenceNumberRange.EndingSequenceNumber != nil && c.p.SequenceNumber == *shard.SequenceNumberRange.EndingSequenceNumber {
+				selectedShardID = *shards[i+1].ShardId // Start from shard following this one.
+				shardIteratorType = stypes.ShardIteratorTypeTrimHorizon
+				break
+			}
+			// find the shard that contains the position's sequence number.
+			if *shard.SequenceNumberRange.StartingSequenceNumber <= c.p.SequenceNumber &&
+				(shard.SequenceNumberRange.EndingSequenceNumber == nil ||
+					c.p.SequenceNumber < *shard.SequenceNumberRange.EndingSequenceNumber) {
+				selectedShardID = *shard.ShardId
+				shardIteratorType = stypes.ShardIteratorTypeAfterSequenceNumber
+				break
+			}
+		}
+
+		// if no shard was found containing the sequence number, then start from the beginning of the shards.
+		if selectedShardID == "" {
+			selectedShardID = *shards[0].ShardId // Start from the first shard
+			shardIteratorType = stypes.ShardIteratorTypeTrimHorizon
+			sdk.Logger(ctx).Warn().Msg("The given sequence number is expired, will start getting events from the beginning of the stream.")
+		}
+	} else {
+		// no sequence number, select the latest shard (the last one in the list)
+		selectedShardID = *shards[len(shards)-1].ShardId
+		shardIteratorType = stypes.ShardIteratorTypeLatest
+	}
+
+	// now that we have the shard ID, we can fetch the shard iterator
+	return c.getShardIteratorForShard(ctx, selectedShardID, shardIteratorType)
+}
+
+// getShardIteratorForShard gets the shard iterator for a specific shard.
+func (c *CDCIterator) getShardIteratorForShard(ctx context.Context, shardID string, shardIteratorType stypes.ShardIteratorType) (*string, error) {
 	input := &dynamodbstreams.GetShardIteratorInput{
 		StreamArn:         aws.String(c.streamArn),
-		ShardId:           shardID,
-		ShardIteratorType: stypes.ShardIteratorTypeLatest,
+		ShardId:           aws.String(shardID),
+		ShardIteratorType: shardIteratorType,
 	}
-	// Get the shard iterator
+	// continue from a specific position.
+	if shardIteratorType == stypes.ShardIteratorTypeAfterSequenceNumber {
+		input.SequenceNumber = aws.String(c.p.SequenceNumber)
+	}
+
+	// get the shard iterator.
 	getShardIteratorOutput, err := c.streamsClient.GetShardIterator(ctx, input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get shard iterator: %w", err)
+		return nil, fmt.Errorf("failed to get shard iterator for shard %s: %w", shardID, err)
 	}
 
 	return getShardIteratorOutput.ShardIterator, nil
+}
+
+// moveToNextShard used to get the iterator of the shard that follows the current one after it was closed.
+func (c *CDCIterator) moveToNextShard(ctx context.Context) (*string, error) {
+	// describe the stream to get the shard details.
+	describeStreamOutput, err := c.streamsClient.DescribeStream(ctx, &dynamodbstreams.DescribeStreamInput{
+		StreamArn: aws.String(c.streamArn),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to describe stream: %w", err)
+	}
+
+	shards := describeStreamOutput.StreamDescription.Shards
+
+	// move to the next shard if the current one is closed
+	if c.shardIndex+1 < len(shards) {
+		c.shardIndex++
+		nextShard := shards[c.shardIndex]
+		// get shard iterator for the new shard
+		return c.getShardIteratorForShard(ctx, *nextShard.ShardId, stypes.ShardIteratorTypeTrimHorizon)
+	}
+	return nil, errors.New("no more shards available")
 }
 
 func (c *CDCIterator) getRecMap(item map[string]stypes.AttributeValue) map[string]interface{} { //nolint:dupl // different types
@@ -213,22 +278,22 @@ func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
 	if rec.EventName == stypes.OperationTypeRemove {
 		image = oldImage
 	}
-
 	// prepare key and position
 	structuredKey := opencdc.StructuredData{
 		c.partitionKey: image[c.partitionKey],
 	}
-	c.p.Key = *rec.Dynamodb.SequenceNumber
-	c.p.IteratorType = position.TypeCDC
 	if c.sortKey != "" {
-		c.p.Key = c.p.Key + "." + fmt.Sprintf("%v", image[c.sortKey])
 		structuredKey = opencdc.StructuredData{
 			c.partitionKey: image[c.partitionKey],
 			c.sortKey:      image[c.sortKey],
 		}
 	}
-	c.p.Time = time.Now()
-	pos, err := c.p.ToRecordPosition()
+	pos := position.Position{
+		IteratorType:   position.TypeCDC,
+		SequenceNumber: *rec.Dynamodb.SequenceNumber,
+		Time:           time.Now(),
+	}
+	cdcPos, err := pos.ToRecordPosition()
 	if err != nil {
 		return opencdc.Record{}, fmt.Errorf("failed to build record's CDC position: %w", err)
 	}
@@ -237,7 +302,7 @@ func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
 	switch rec.EventName {
 	case stypes.OperationTypeInsert:
 		return sdk.Util.Source.NewRecordCreate(
-			pos,
+			cdcPos,
 			map[string]string{
 				opencdc.MetadataCollection: c.tableName,
 			},
@@ -246,7 +311,7 @@ func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
 		), nil
 	case stypes.OperationTypeModify:
 		return sdk.Util.Source.NewRecordUpdate(
-			pos,
+			cdcPos,
 			map[string]string{
 				opencdc.MetadataCollection: c.tableName,
 			},
@@ -256,7 +321,7 @@ func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
 		), nil
 	case stypes.OperationTypeRemove:
 		return sdk.Util.Source.NewRecordDelete(
-			pos,
+			cdcPos,
 			map[string]string{
 				opencdc.MetadataCollection: c.tableName,
 			},

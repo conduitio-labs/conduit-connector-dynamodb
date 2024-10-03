@@ -32,8 +32,9 @@ type IteratorType int
 type Position struct {
 	IteratorType IteratorType `json:"iterator_type"`
 
-	// the record's key, for the snapshot iterator
-	Key string `json:"key"`
+	// the record's keys, for the snapshot iterator
+	PartitionKey string `json:"partition_key"`
+	SortKey      string `json:"sort_key"`
 
 	// the record's sequence number in the stream, for the CDC iterator.
 	SequenceNumber string `json:"sequence_number"`

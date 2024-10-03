@@ -26,14 +26,14 @@ import (
 func TestParseSDKPosition(t *testing.T) {
 	validPosition := Position{
 		IteratorType:   TypeCDC,
-		Key:            "key",
+		PartitionKey:   "key",
 		SequenceNumber: "my-sequence-number",
 		Time:           time.Time{},
 	}
 
 	wrongPosType := Position{
 		IteratorType:   3, // non-existent type
-		Key:            "key",
+		PartitionKey:   "key",
 		SequenceNumber: "my-sequence-number",
 	}
 	is := is.New(t)

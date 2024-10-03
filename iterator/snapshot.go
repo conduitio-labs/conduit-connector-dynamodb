@@ -53,7 +53,6 @@ func NewSnapshotIterator(tableName string, pKey string, sKey string, client *dyn
 	}, nil
 }
 
-// todo can use dynamodb ScanPaginator instead
 // refreshPage fetches the next page of items from DynamoDB.
 func (s *SnapshotIterator) refreshPage(ctx context.Context) error {
 	s.items = nil
@@ -87,7 +86,11 @@ func (s *SnapshotIterator) HasNext(ctx context.Context) bool {
 	if s.lastEvaluatedKey != nil || s.firstIt {
 		s.firstIt = false
 		err := s.refreshPage(ctx)
-		return err == nil
+		if err != nil {
+			sdk.Logger(ctx).Error().Err(err).Msg("failed to get the next page of the snapshot.")
+			return false
+		}
+		return true
 	}
 	return false
 }
@@ -106,29 +109,29 @@ func (s *SnapshotIterator) Stop() {
 }
 
 func (s *SnapshotIterator) buildOpenCDCRecord(item map[string]interface{}) (opencdc.Record, error) {
-	var structuredKey opencdc.StructuredData
-	s.p.Key = fmt.Sprintf("%v", item[s.partitionKey])
+	structuredKey := opencdc.StructuredData{
+		s.partitionKey: item[s.partitionKey],
+	}
 	if s.sortKey != "" {
-		s.p.Key = s.p.Key + "." + fmt.Sprintf("%v", item[s.sortKey])
 		structuredKey = opencdc.StructuredData{
 			s.partitionKey: item[s.partitionKey],
 			s.sortKey:      item[s.sortKey],
 		}
-	} else {
-		structuredKey = opencdc.StructuredData{
-			s.partitionKey: item[s.partitionKey],
-		}
 	}
-	s.p.IteratorType = position.TypeSnapshot
-	s.p.Time = time.Now()
-	pos, err := s.p.ToRecordPosition()
+	pos := position.Position{
+		IteratorType: position.TypeSnapshot,
+		PartitionKey: fmt.Sprintf("%v", item[s.partitionKey]),
+		SortKey:      fmt.Sprintf("%v", item[s.sortKey]),
+		Time:         time.Now(),
+	}
+	recordPos, err := pos.ToRecordPosition()
 	if err != nil {
 		return opencdc.Record{}, fmt.Errorf("error building snapshot position: %w", err)
 	}
 
 	// Create the record
 	return sdk.Util.Source.NewRecordSnapshot(
-		pos,
+		recordPos,
 		map[string]string{
 			opencdc.MetadataCollection: s.tableName,
 		},

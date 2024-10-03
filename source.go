@@ -18,6 +18,7 @@ package dynamodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -37,12 +38,11 @@ import (
 type Source struct {
 	sdk.UnimplementedSource
 
-	config           SourceConfig
-	dynamoDBClient   *dynamodb.Client
-	streamsClient    *dynamodbstreams.Client
-	lastPositionRead opencdc.Position
-	streamArn        string
-	iterator         Iterator
+	config         SourceConfig
+	dynamoDBClient *dynamodb.Client
+	streamsClient  *dynamodbstreams.Client
+	streamArn      string
+	iterator       Iterator
 }
 
 type SourceConfig struct {
@@ -96,7 +96,6 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 
 	s.dynamoDBClient = dynamodb.NewFromConfig(cfg)
 	s.streamsClient = dynamodbstreams.NewFromConfig(cfg)
-	s.lastPositionRead = pos
 
 	partitionKey, sortKey, err := s.getKeyNamesFromTable(ctx)
 	if err != nil {
@@ -130,7 +129,7 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 }
 
 func (s *Source) Read(ctx context.Context) (opencdc.Record, error) {
-	sdk.Logger(ctx).Info().Msg("Reading records from DynamoDB...")
+	sdk.Logger(ctx).Trace().Msg("Reading records from DynamoDB...")
 
 	if !s.iterator.HasNext(ctx) {
 		return opencdc.Record{}, sdk.ErrBackoffRetry
@@ -202,7 +201,7 @@ func (s *Source) prepareStream(ctx context.Context) error {
 	}
 
 	if out.Table.LatestStreamArn == nil {
-		return fmt.Errorf("stream was not enabled successfully")
+		return errors.New("stream was not enabled successfully")
 	}
 
 	sdk.Logger(ctx).Info().Str("LatestStreamArn", *out.Table.LatestStreamArn).Msg("Stream enabled successfully.")

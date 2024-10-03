@@ -62,7 +62,7 @@ func NewCombinedIterator(
 
 	switch p.IteratorType {
 	case position.TypeSnapshot:
-		if len(p.Key) != 0 {
+		if len(p.PartitionKey) != 0 {
 			sdk.Logger(ctx).
 				Warn().
 				Msg("previous snapshot did not complete successfully. snapshot will be restarted for consistency.")
@@ -71,6 +71,11 @@ func NewCombinedIterator(
 		c.snapshotIterator, err = NewSnapshotIterator(tableName, pKey, sKey, client, p)
 		if err != nil {
 			return nil, fmt.Errorf("could not create the snapshot iterator: %w", err)
+		}
+		// start listening for changes while snapshot is running
+		c.cdcIterator, err = NewCDCIterator(ctx, tableName, pKey, sKey, pollingPeriod, streamsClient, streamArn, position.Position{})
+		if err != nil {
+			return nil, fmt.Errorf("could not create the CDC iterator: %w", err)
 		}
 	case position.TypeCDC:
 		c.cdcIterator, err = NewCDCIterator(ctx, tableName, pKey, sKey, pollingPeriod, streamsClient, streamArn, p)
@@ -86,15 +91,7 @@ func NewCombinedIterator(
 func (c *CombinedIterator) HasNext(ctx context.Context) bool {
 	switch {
 	case c.snapshotIterator != nil:
-		// if snapshot is over
-		if !c.snapshotIterator.HasNext(ctx) {
-			err := c.switchToCDCIterator(ctx)
-			if err != nil {
-				return false
-			}
-			return false
-		}
-		return true
+		return c.snapshotIterator.HasNext(ctx)
 	case c.cdcIterator != nil:
 		return c.cdcIterator.HasNext(ctx)
 	default:
@@ -110,12 +107,8 @@ func (c *CombinedIterator) Next(ctx context.Context) (opencdc.Record, error) {
 			return opencdc.Record{}, err
 		}
 		if !c.snapshotIterator.HasNext(ctx) {
-			// switch to cdc iterator
-			err := c.switchToCDCIterator(ctx)
-			if err != nil {
-				return opencdc.Record{}, err
-			}
-			// change the last record's position to CDC
+			c.snapshotIterator = nil
+			// change the last snapshot record's position to CDC
 			r.Position, err = position.ConvertToCDCPosition(r.Position)
 			if err != nil {
 				return opencdc.Record{}, fmt.Errorf("error converting position to CDC: %w", err)
@@ -134,17 +127,4 @@ func (c *CombinedIterator) Stop() {
 	if c.cdcIterator != nil {
 		c.cdcIterator.Stop()
 	}
-}
-
-func (c *CombinedIterator) switchToCDCIterator(ctx context.Context) error {
-	var err error
-	pos := position.Position{
-		IteratorType: position.TypeCDC,
-	}
-	c.cdcIterator, err = NewCDCIterator(ctx, c.tableName, c.partitionKey, c.sortKey, c.pollingPeriod, c.streamsClient, c.streamArn, pos)
-	if err != nil {
-		return fmt.Errorf("could not create cdc iterator: %w", err)
-	}
-	c.snapshotIterator = nil
-	return nil
 }
