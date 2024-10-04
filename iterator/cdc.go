@@ -105,7 +105,6 @@ func (c *CDCIterator) startCDC() error {
 		case <-c.tomb.Dying():
 			return fmt.Errorf("tomb is dying: %w", c.tomb.Err())
 		case <-c.ticker.C: // detect changes every polling period
-			// todo loop for more than 1000 records
 			out, err := c.streamsClient.GetRecords(c.tomb.Context(nil), &dynamodbstreams.GetRecordsInput{ //nolint:staticcheck // SA1012 tomb expects nil
 				ShardIterator: c.shardIterator,
 			})
@@ -115,6 +114,10 @@ func (c *CDCIterator) startCDC() error {
 
 			// process the stream records
 			for _, record := range out.Records {
+				// skip older events (this case would only be hit if the pipeline restarts after snapshot and before CDC).
+				if record.Dynamodb.ApproximateCreationDateTime != nil && !record.Dynamodb.ApproximateCreationDateTime.After(c.p.Time) {
+					continue
+				}
 				select {
 				case c.cache <- record:
 					// Successfully sent record
@@ -155,35 +158,44 @@ func (c *CDCIterator) getShardIterator(ctx context.Context) (*string, error) {
 	}
 
 	var selectedShardID string
-	shardIteratorType := stypes.ShardIteratorTypeLatest
-	// If position has a sequence number, find the shard containing it
+	var shardIteratorType stypes.ShardIteratorType
+	// If position has a sequence number, find the shard containing it.
 	if c.p.SequenceNumber != "" {
 		for i, shard := range shards {
-			// if the sequence number is at the end of the shard, save the index od the shard to use with the "TRIM_HORIZON" case.
+			// if the sequence number is at the end of the shard (shard was closed after it), then we'll start from the next shard with the "TRIM_HORIZON" iterator type.
 			if shard.SequenceNumberRange.EndingSequenceNumber != nil && c.p.SequenceNumber == *shard.SequenceNumberRange.EndingSequenceNumber {
-				selectedShardID = *shards[i+1].ShardId // Start from shard following this one.
+				c.shardIndex = i + 1
+				selectedShardID = *shards[c.shardIndex].ShardId // Start from shard following this one.
 				shardIteratorType = stypes.ShardIteratorTypeTrimHorizon
 				break
 			}
-			// find the shard that contains the position's sequence number.
+			// find the shard contains the position's sequence number, then we'll start from this shard, with the "AFTER_SEQUENCE_NUMBER" iterator type.
 			if *shard.SequenceNumberRange.StartingSequenceNumber <= c.p.SequenceNumber &&
 				(shard.SequenceNumberRange.EndingSequenceNumber == nil ||
 					c.p.SequenceNumber < *shard.SequenceNumberRange.EndingSequenceNumber) {
+				c.shardIndex = i
 				selectedShardID = *shard.ShardId
 				shardIteratorType = stypes.ShardIteratorTypeAfterSequenceNumber
 				break
 			}
 		}
 
-		// if no shard was found containing the sequence number, then start from the beginning of the shards.
+		// if no shard was found containing the sequence number, then start from the beginning of all shards.
 		if selectedShardID == "" {
-			selectedShardID = *shards[0].ShardId // Start from the first shard
+			c.shardIndex = 0
+			selectedShardID = *shards[c.shardIndex].ShardId // Start from the first shard
 			shardIteratorType = stypes.ShardIteratorTypeTrimHorizon
-			sdk.Logger(ctx).Warn().Msg("The given sequence number is expired, will start getting events from the beginning of the stream.")
+			sdk.Logger(ctx).Warn().Msg("The given sequence number is expired, connector will start getting events from the beginning of the stream.")
 		}
+	} else if (c.p != position.Position{}) {
+		// this is a specific case of which the pipeline was restarted after snapshot and before CDC, so there is no sequence number to start from.
+		c.shardIndex = 0
+		selectedShardID = *shards[c.shardIndex].ShardId
+		shardIteratorType = stypes.ShardIteratorTypeTrimHorizon
 	} else {
-		// no sequence number, select the latest shard (the last one in the list)
-		selectedShardID = *shards[len(shards)-1].ShardId
+		// no position, select the latest shard (the last one in the list).
+		c.shardIndex = len(shards) - 1
+		selectedShardID = *shards[c.shardIndex].ShardId
 		shardIteratorType = stypes.ShardIteratorTypeLatest
 	}
 
