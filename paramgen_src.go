@@ -8,23 +8,55 @@ import (
 )
 
 const (
-	SourceConfigFoo                   = "foo"
-	SourceConfigGlobalConfigParamName = "global_config_param_name"
+	SourceConfigAwsAccessKeyId     = "aws.accessKeyId"
+	SourceConfigAwsRegion          = "aws.region"
+	SourceConfigAwsSecretAccessKey = "aws.secretAccessKey"
+	SourceConfigPollingPeriod      = "pollingPeriod"
+	SourceConfigSkipSnapshot       = "skipSnapshot"
+	SourceConfigTable              = "table"
 )
 
 func (SourceConfig) Parameters() map[string]config.Parameter {
 	return map[string]config.Parameter{
-		SourceConfigFoo: {
+		SourceConfigAwsAccessKeyId: {
 			Default:     "",
-			Description: "SourceConfigParam is named foo and must be provided by the user.",
+			Description: "AWS access key id.",
 			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{
 				config.ValidationRequired{},
 			},
 		},
-		SourceConfigGlobalConfigParamName: {
+		SourceConfigAwsRegion: {
 			Default:     "",
-			Description: "GlobalConfigParam is named global_config_param_name and needs to be\nprovided by the user.",
+			Description: "AWS region.",
+			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{
+				config.ValidationRequired{},
+			},
+		},
+		SourceConfigAwsSecretAccessKey: {
+			Default:     "",
+			Description: "AWS secret access key.",
+			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{
+				config.ValidationRequired{},
+			},
+		},
+		SourceConfigPollingPeriod: {
+			Default:     "1s",
+			Description: "polling period for the CDC mode, formatted as a time.Duration string.",
+			Type:        config.ParameterTypeDuration,
+			Validations: []config.Validation{},
+		},
+		SourceConfigSkipSnapshot: {
+			Default:     "false",
+			Description: "skipSnapshot determines weather to skip the snapshot or not.",
+			Type:        config.ParameterTypeBool,
+			Validations: []config.Validation{},
+		},
+		SourceConfigTable: {
+			Default:     "",
+			Description: "Table is the DynamoDB table name to pull data from.",
 			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{
 				config.ValidationRequired{},

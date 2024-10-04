@@ -1,12 +1,36 @@
+// Copyright © 2024 Meroxa, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package dynamodb
 
 //go:generate paramgen -output=paramgen_src.go SourceConfig
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
-	"github.com/conduitio/conduit-commons/config"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
+	"github.com/conduitio-labs/conduit-connector-dynamodb/iterator"
+	"github.com/conduitio-labs/conduit-connector-dynamodb/position"
+	cconfig "github.com/conduitio/conduit-commons/config"
 	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 )
@@ -14,39 +38,44 @@ import (
 type Source struct {
 	sdk.UnimplementedSource
 
-	config           SourceConfig
-	lastPositionRead opencdc.Position //nolint:unused // this is just an example
+	config         SourceConfig
+	dynamoDBClient *dynamodb.Client
+	streamsClient  *dynamodbstreams.Client
+	streamArn      string
+	iterator       Iterator
 }
 
 type SourceConfig struct {
-	// Config includes parameters that are the same in the source and destination.
-	Config
-	// SourceConfigParam is named foo and must be provided by the user.
-	SourceConfigParam string `json:"foo" validate:"required"`
+	// Table is the DynamoDB table name to pull data from.
+	Table string `json:"table" validate:"required"`
+	// AWS region.
+	AWSRegion string `json:"aws.region" validate:"required"`
+	// AWS access key id.
+	AWSAccessKeyID string `json:"aws.accessKeyId" validate:"required"`
+	// AWS secret access key.
+	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
+	// polling period for the CDC mode, formatted as a time.Duration string.
+	PollingPeriod time.Duration `json:"pollingPeriod" default:"1s"`
+	// skipSnapshot determines weather to skip the snapshot or not.
+	SkipSnapshot bool `json:"skipSnapshot" default:"false"`
+}
+
+type Iterator interface {
+	HasNext(ctx context.Context) bool
+	Next(ctx context.Context) (opencdc.Record, error)
+	Stop()
 }
 
 func NewSource() sdk.Source {
-	// Create Source and wrap it in the default middleware.
 	return sdk.SourceWithMiddleware(&Source{}, sdk.DefaultSourceMiddleware()...)
 }
 
-func (s *Source) Parameters() config.Parameters {
-	// Parameters is a map of named Parameters that describe how to configure
-	// the Source. Parameters can be generated from SourceConfig with paramgen.
+func (s *Source) Parameters() cconfig.Parameters {
 	return s.config.Parameters()
 }
 
-func (s *Source) Configure(ctx context.Context, cfg config.Config) error {
-	// Configure is the first function to be called in a connector. It provides
-	// the connector with the configuration that can be validated and stored.
-	// In case the configuration is not valid it should return an error.
-	// Testing if your connector can reach the configured data source should be
-	// done in Open, not in Configure.
-	// The SDK will validate the configuration and populate default values
-	// before calling Configure. If you need to do more complex validations you
-	// can do them manually here.
-
-	sdk.Logger(ctx).Info().Msg("Configuring Source...")
+func (s *Source) Configure(ctx context.Context, cfg cconfig.Config) error {
+	sdk.Logger(ctx).Info().Msg("Configuring DynamoDB Source...")
 	err := sdk.Util.ParseConfig(ctx, cfg, &s.config, NewSource().Parameters())
 	if err != nil {
 		return fmt.Errorf("invalid config: %w", err)
@@ -54,42 +83,170 @@ func (s *Source) Configure(ctx context.Context, cfg config.Config) error {
 	return nil
 }
 
-func (s *Source) Open(_ context.Context, _ opencdc.Position) error {
-	// Open is called after Configure to signal the plugin it can prepare to
-	// start producing records. If needed, the plugin should open connections in
-	// this function. The position parameter will contain the position of the
-	// last record that was successfully processed, Source should therefore
-	// start producing records after this position. The context passed to Open
-	// will be cancelled once the plugin receives a stop signal from Conduit.
+func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
+	sdk.Logger(ctx).Info().Msg("Opening DynamoDB Source...")
+
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(s.config.AWSRegion),
+		config.WithCredentialsProvider(aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(s.config.AWSAccessKeyID, s.config.AWSSecretAccessKey, ""))),
+	)
+	if err != nil {
+		return fmt.Errorf("error creating AWS session: %w", err)
+	}
+
+	s.dynamoDBClient = dynamodb.NewFromConfig(cfg)
+	s.streamsClient = dynamodbstreams.NewFromConfig(cfg)
+
+	partitionKey, sortKey, err := s.getKeyNamesFromTable(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting key names from table: %w", err)
+	}
+	err = s.prepareStream(ctx)
+	if err != nil {
+		return err
+	}
+
+	p, err := position.ParseRecordPosition(pos)
+	if err != nil {
+		return fmt.Errorf("error parssing position: %w", err)
+	}
+
+	// create the needed iterator
+	var itr Iterator
+	if s.config.SkipSnapshot {
+		itr, err = iterator.NewCDCIterator(ctx, s.config.Table, partitionKey, sortKey, s.config.PollingPeriod, s.streamsClient, s.streamArn, p)
+		if err != nil {
+			return fmt.Errorf("error creating CDC iterator: %w", err)
+		}
+	} else {
+		itr, err = iterator.NewCombinedIterator(ctx, s.config.Table, partitionKey, sortKey, s.config.PollingPeriod, s.dynamoDBClient, s.streamsClient, s.streamArn, p)
+		if err != nil {
+			return fmt.Errorf("error creating combined iterator: %w", err)
+		}
+	}
+	s.iterator = itr
 	return nil
 }
 
-func (s *Source) Read(_ context.Context) (opencdc.Record, error) {
-	// Read returns a new Record and is supposed to block until there is either
-	// a new record or the context gets cancelled. It can also return the error
-	// ErrBackoffRetry to signal to the SDK it should call Read again with a
-	// backoff retry.
-	// If Read receives a cancelled context or the context is cancelled while
-	// Read is running it must stop retrieving new records from the source
-	// system and start returning records that have already been buffered. If
-	// there are no buffered records left Read must return the context error to
-	// signal a graceful stop. If Read returns ErrBackoffRetry while the context
-	// is cancelled it will also signal that there are no records left and Read
-	// won't be called again.
-	// After Read returns an error the function won't be called again (except if
-	// the error is ErrBackoffRetry, as mentioned above).
-	// Read can be called concurrently with Ack.
-	return opencdc.Record{}, nil
+func (s *Source) Read(ctx context.Context) (opencdc.Record, error) {
+	sdk.Logger(ctx).Trace().Msg("Reading records from DynamoDB...")
+
+	if !s.iterator.HasNext(ctx) {
+		return opencdc.Record{}, sdk.ErrBackoffRetry
+	}
+	r, err := s.iterator.Next(ctx)
+	if err != nil {
+		return opencdc.Record{}, fmt.Errorf("error getting next record: %w", err)
+	}
+	return r, nil
 }
 
-func (s *Source) Ack(ctx context.Context, pos opencdc.Position) error {
-	sdk.Logger(ctx).Debug().Str("position", string(pos)).Msg("got ack")
+func (s *Source) Ack(ctx context.Context, position opencdc.Position) error {
+	sdk.Logger(ctx).Debug().Str("position", string(position)).Msg("Acknowledged position")
 	return nil
 }
 
-func (s *Source) Teardown(_ context.Context) error {
-	// Teardown signals to the plugin that there will be no more calls to any
-	// other function. After Teardown returns, the plugin should be ready for a
-	// graceful shutdown.
+func (s *Source) Teardown(ctx context.Context) error {
+	sdk.Logger(ctx).Info().Msg("Tearing down DynamoDB Source...")
 	return nil
+}
+
+func describeTable(ctx context.Context, client *dynamodb.Client, tableName string) (*dynamodb.DescribeTableOutput, error) {
+	describeTableInput := &dynamodb.DescribeTableInput{
+		TableName: &tableName,
+	}
+	desc, err := client.DescribeTable(ctx, describeTableInput)
+	if err != nil {
+		return nil, fmt.Errorf("error describing table: %w", err)
+	}
+	return desc, nil
+}
+
+func enableStream(ctx context.Context, client *dynamodb.Client, tableName string) error {
+	updateTableInput := &dynamodb.UpdateTableInput{
+		TableName: &tableName,
+		StreamSpecification: &types.StreamSpecification{
+			StreamEnabled:  aws.Bool(true),
+			StreamViewType: types.StreamViewTypeNewAndOldImages,
+		},
+	}
+	_, err := client.UpdateTable(ctx, updateTableInput)
+	return fmt.Errorf("failed to enable stream on DynamoDB table: %w", err)
+}
+
+func (s *Source) prepareStream(ctx context.Context) error {
+	// Describe the table to get Stream ARN
+	out, err := describeTable(ctx, s.dynamoDBClient, s.config.Table)
+	if err != nil {
+		return err
+	}
+
+	if out.Table.LatestStreamArn != nil && out.Table.StreamSpecification != nil && aws.ToBool(out.Table.StreamSpecification.StreamEnabled) {
+		sdk.Logger(ctx).Info().Str("LatestStreamArn", *out.Table.LatestStreamArn).Msg("LatestStreamArn found.")
+		s.streamArn = *out.Table.LatestStreamArn
+		return nil
+	}
+
+	sdk.Logger(ctx).Info().Msg("No stream enabled. Enabling stream...")
+
+	// Enable stream if not present
+	if err = enableStream(ctx, s.dynamoDBClient, s.config.Table); err != nil {
+		return err
+	}
+
+	// Describe the table again to get the LatestStreamArn
+	out, err = s.waitForStreamToBeEnabled(ctx)
+	if err != nil {
+		return err
+	}
+
+	if out.Table.LatestStreamArn == nil {
+		return errors.New("stream was not enabled successfully")
+	}
+
+	sdk.Logger(ctx).Info().Str("LatestStreamArn", *out.Table.LatestStreamArn).Msg("Stream enabled successfully.")
+	s.streamArn = *out.Table.LatestStreamArn
+	return nil
+}
+
+// todo: this method doesn't work as expected, stream is created but not ready to fetch data from yet.
+func (s *Source) waitForStreamToBeEnabled(ctx context.Context) (*dynamodb.DescribeTableOutput, error) {
+	sdk.Logger(ctx).Info().Msg("waiting for stream to be enabled...")
+	for {
+		// Describe the table to check stream status
+		describeTableInput := &dynamodb.DescribeTableInput{
+			TableName: aws.String(s.config.Table),
+		}
+
+		describeTableOutput, err := s.dynamoDBClient.DescribeTable(ctx, describeTableInput)
+		if err != nil {
+			return nil, fmt.Errorf("error describing DynamoDB table: %w", err)
+		}
+
+		// Check if the stream is enabled
+		if describeTableOutput.Table.StreamSpecification != nil && aws.ToBool(describeTableOutput.Table.StreamSpecification.StreamEnabled) {
+			return describeTableOutput, nil
+		}
+		// Wait before checking again
+		time.Sleep(2 * time.Second)
+	}
+}
+
+func (s *Source) getKeyNamesFromTable(ctx context.Context) (partitionKey string, sortKey string, err error) {
+	out, err := describeTable(ctx, s.dynamoDBClient, s.config.Table)
+	if err != nil {
+		return "", "", fmt.Errorf("error describing table: %w", err)
+	}
+
+	// Iterate over the key schema to find the key names
+	for _, keySchemaElement := range out.Table.KeySchema {
+		switch keySchemaElement.KeyType {
+		case types.KeyTypeHash:
+			partitionKey = *keySchemaElement.AttributeName
+		case types.KeyTypeRange:
+			sortKey = *keySchemaElement.AttributeName
+		}
+	}
+
+	return partitionKey, sortKey, nil
 }
