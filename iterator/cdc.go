@@ -179,7 +179,6 @@ func (c *CDCIterator) getShardIterator(ctx context.Context) (*string, error) {
 				break
 			}
 		}
-
 		// if no shard was found containing the sequence number, then start from the beginning of all shards.
 		if selectedShardID == "" {
 			c.shardIndex = 0
