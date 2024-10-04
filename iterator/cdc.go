@@ -187,16 +187,20 @@ func (c *CDCIterator) getShardIterator(ctx context.Context) (*string, error) {
 			shardIteratorType = stypes.ShardIteratorTypeTrimHorizon
 			sdk.Logger(ctx).Warn().Msg("The given sequence number is expired, connector will start getting events from the beginning of the stream.")
 		}
-	} else if (c.p != position.Position{}) {
-		// this is a specific case of which the pipeline was restarted after snapshot and before CDC, so there is no sequence number to start from.
-		c.shardIndex = 0
-		selectedShardID = *shards[c.shardIndex].ShardId
-		shardIteratorType = stypes.ShardIteratorTypeTrimHorizon
-	} else {
-		// no position, select the latest shard (the last one in the list).
-		c.shardIndex = len(shards) - 1
-		selectedShardID = *shards[c.shardIndex].ShardId
-		shardIteratorType = stypes.ShardIteratorTypeLatest
+	}
+	// if the sequence number is not given.
+	if c.p.SequenceNumber == "" {
+		if (c.p != position.Position{}) {
+			// this is a specific case of which the pipeline was restarted after snapshot and before CDC, so there is no sequence number to start from.
+			c.shardIndex = 0
+			selectedShardID = *shards[c.shardIndex].ShardId
+			shardIteratorType = stypes.ShardIteratorTypeTrimHorizon
+		} else {
+			// select the latest shard (the last one in the list).
+			c.shardIndex = len(shards) - 1
+			selectedShardID = *shards[c.shardIndex].ShardId
+			shardIteratorType = stypes.ShardIteratorTypeLatest
+		}
 	}
 
 	// now that we have the shard ID, we can fetch the shard iterator
