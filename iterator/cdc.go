@@ -164,8 +164,8 @@ func (c *CDCIterator) getShardIterator(ctx context.Context) (*string, error) {
 		for i, shard := range shards {
 			// if the sequence number is at the end of the shard (shard was closed after it), then we'll start from the next shard with the "TRIM_HORIZON" iterator type.
 			if shard.SequenceNumberRange.EndingSequenceNumber != nil && c.p.SequenceNumber == *shard.SequenceNumberRange.EndingSequenceNumber {
-				c.shardIndex = i + 1
-				selectedShardID = *shards[c.shardIndex].ShardId // Start from shard following this one.
+				c.shardIndex = i + 1 // Start from shard following this one.
+				selectedShardID = *shards[c.shardIndex].ShardId
 				shardIteratorType = stypes.ShardIteratorTypeTrimHorizon
 				break
 			}

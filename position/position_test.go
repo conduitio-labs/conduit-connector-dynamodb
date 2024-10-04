@@ -59,6 +59,11 @@ func TestParseSDKPosition(t *testing.T) {
 			in:          opencdc.Position(wrongPosBytes),
 			expectedErr: "unknown iterator type",
 		},
+		{
+			name: "nil position",
+			in:   nil,
+			want: Position{},
+		},
 	}
 
 	for _, tt := range tests {
