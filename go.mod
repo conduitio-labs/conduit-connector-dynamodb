@@ -5,7 +5,7 @@ go 1.23
 require (
 	github.com/aws/aws-sdk-go-v2 v1.32.2
 	github.com/aws/aws-sdk-go-v2/config v1.27.28
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.28
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.41
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.36.2
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.22.4
 	github.com/conduitio/conduit-commons v0.3.0
@@ -39,16 +39,16 @@ require (
 	github.com/alingse/asasalint v0.0.11 // indirect
 	github.com/ashanbrown/forbidigo v1.6.0 // indirect
 	github.com/ashanbrown/makezero v1.1.1 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.12 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.17 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.21 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.21 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.10.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.18 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.22.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.26.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.30.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.24.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.32.2 // indirect
 	github.com/aws/smithy-go v1.22.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bkielbasa/cyclop v1.2.1 // indirect
