@@ -1,5 +1,10 @@
-# Configure the services needed for the integration tests.
-# More information at https://docs.docker.com/compose/
+version: '3.8'
 services:
-  hello-world:
-    image: "hello-world:latest"
+  localstack:
+    image: localstack/localstack:3.6.0
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=dynamodb
+      - EDGE_PORT=4566
+      - DEFAULT_REGION=us-east-1

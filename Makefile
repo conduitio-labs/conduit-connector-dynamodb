@@ -9,12 +9,18 @@ test:
 	go test $(GOTEST_FLAGS) -race ./...
 
 .PHONY: test-integration
-test-integration:
-	# run required docker containers, execute integration tests, stop containers after tests
-	docker compose -f test/docker-compose.yml up -d
+test-integration: up
 	go test $(GOTEST_FLAGS) -v -race ./...; ret=$$?; \
-		docker compose -f test/docker-compose.yml down; \
+		docker compose -f test/docker-compose.yml down -v; \
 		exit $$ret
+
+.PHONY: up
+up:
+	docker compose -f test/docker-compose.yml up --quiet-pull -d --wait
+
+.PHONY: down
+down:
+	docker compose -f test/docker-compose.yml down -v --remove-orphans
 
 .PHONY: generate
 generate:
