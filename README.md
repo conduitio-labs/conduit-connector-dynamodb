@@ -18,8 +18,8 @@ The command will handle starting and stopping docker containers for you.
 A source connector that pulls data from a DynamoDB table to downstream resources via Conduit.
 
 The connector starts with a snapshot of the data currently existent in the table, sends these records to the 
-destination one by one, then start the CDC (Change Data Capture) mode which will listen to events happening on the table
-in real time, and sends these event records to the destination (these events include: `updates`, `deletes`, and `inserts`).
+destination, then starts the CDC (Change Data Capture) mode which will listen to events happening on the table
+in real-time, and sends these event records to the destination (these events include: `updates`, `deletes`, and `inserts`).
 
 For the source connector to get CDC events, it uses [DynamoDB Streams](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html), 
 so you need to enable the stream before running the connector, check these docs for [how to enable your DynamoDB Stream](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html#Streams.Enabling).
