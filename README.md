@@ -21,8 +21,8 @@ The connector starts with a snapshot of the data currently existent in the table
 destination, then starts the CDC (Change Data Capture) mode which will listen to events happening on the table
 in real-time, and sends these event records to the destination (these events include: `updates`, `deletes`, and `inserts`).
 
-For the source connector to get CDC events, it uses [DynamoDB Streams](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html), 
-so you need to enable the stream before running the connector, check these docs for [how to enable your DynamoDB Stream](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html#Streams.Enabling).
+The source connector uses [DynamoDB Streams](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html) to get CDC events,
+so you need to enable the stream before running the connector. Check out the documentation for [how to enable a DynamoDB Stream](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html#Streams.Enabling).
 
 ### Configuration
 
