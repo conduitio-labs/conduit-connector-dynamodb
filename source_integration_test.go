@@ -72,16 +72,16 @@ func TestSource_SuccessfulSnapshot(t *testing.T) {
 
 	testTable := cfg[SourceConfigTable]
 	source := &Source{}
-	err := source.Configure(context.Background(), cfg)
+	err := source.Configure(ctx, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// insert 5 rows
-	err = insertRecord(ctx, client, testTable, 0, 4)
+	err = insertRecord(ctx, client, testTable, 0, 5)
 	is.NoErr(err)
 
-	err = source.Open(context.Background(), nil)
+	err = source.Open(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,11 +110,11 @@ func TestSource_SnapshotRestart(t *testing.T) {
 	client, cfg := prepareIntegrationTest(ctx, t)
 	testTable := cfg[SourceConfigTable]
 	source := &Source{}
-	err := source.Configure(context.Background(), cfg)
+	err := source.Configure(ctx, cfg)
 	is.NoErr(err)
 
 	// add rows
-	err = insertRecord(ctx, client, testTable, 0, 5)
+	err = insertRecord(ctx, client, testTable, 0, 6)
 	is.NoErr(err)
 
 	// set a non nil position
@@ -125,11 +125,11 @@ func TestSource_SnapshotRestart(t *testing.T) {
 	}
 	recPos, err := pos.ToRecordPosition()
 	is.NoErr(err)
-	err = source.Open(context.Background(), recPos)
+	err = source.Open(ctx, recPos)
 	is.NoErr(err)
 
 	var got Records
-	for i := 0; i <= 5; i++ {
+	for i := 0; i < 6; i++ {
 		rec, err := source.Read(ctx)
 		is.NoErr(err)
 		got = append(got, rec)
@@ -145,9 +145,9 @@ func TestSource_EmptyTable(t *testing.T) {
 	_, cfg := prepareIntegrationTest(ctx, t)
 
 	source := &Source{}
-	err := source.Configure(context.Background(), cfg)
+	err := source.Configure(ctx, cfg)
 	is.NoErr(err)
-	err = source.Open(context.Background(), nil)
+	err = source.Open(ctx, nil)
 	is.NoErr(err)
 
 	_, err = source.Read(ctx)
@@ -164,13 +164,13 @@ func TestSource_NonExistentTable(t *testing.T) {
 	source := &Source{}
 
 	// set the table name to a unique uuid, so it doesn't exist.
-	cfg[SourceConfigTable] = "28e2d9e9-b1d6-4fd7-bfa1-183ceb3c9404"
+	cfg[SourceConfigTable] = uuid.NewString()
 
-	err := source.Configure(context.Background(), cfg)
+	err := source.Configure(ctx, cfg)
 	is.NoErr(err)
 
 	// table existence check at "Open"
-	err = source.Open(context.Background(), nil)
+	err = source.Open(ctx, nil)
 	is.True(err != nil)
 	is.True(strings.Contains(err.Error(), "Cannot do operations on a non-existent table"))
 }
@@ -182,14 +182,14 @@ func TestSource_CDC(t *testing.T) {
 	//
 	testTable := cfg[SourceConfigTable]
 	source := &Source{}
-	err := source.Configure(context.Background(), cfg)
+	err := source.Configure(ctx, cfg)
 	is.NoErr(err)
 
 	// add rows
 	err = insertRecord(ctx, client, testTable, 1, 2)
 	is.NoErr(err)
 
-	err = source.Open(context.Background(), nil)
+	err = source.Open(ctx, nil)
 	is.NoErr(err)
 
 	// snapshot, one record
@@ -201,17 +201,7 @@ func TestSource_CDC(t *testing.T) {
 	err = insertRecord(ctx, client, testTable, 2, 3)
 	is.NoErr(err)
 
-	// delete the latest row, will be captured by CDC
-	_, err = client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
-		TableName: aws.String(testTable),
-		Key: map[string]types.AttributeValue{
-			PartitionKey: &types.AttributeValueMemberS{Value: "pkey2"},
-			SortKey:      &types.AttributeValueMemberN{Value: "2"},
-		},
-	})
-	is.NoErr(err)
-
-	// update the first row, will be captured by CDC
+	// update the latest row, will be captured by CDC
 	_, err = client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName: aws.String(testTable),
 		Key: map[string]types.AttributeValue{
@@ -228,6 +218,16 @@ func TestSource_CDC(t *testing.T) {
 	})
 	is.NoErr(err)
 
+	// delete the latest row, will be captured by CDC
+	_, err = client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+		TableName: aws.String(testTable),
+		Key: map[string]types.AttributeValue{
+			PartitionKey: &types.AttributeValueMemberS{Value: "pkey2"},
+			SortKey:      &types.AttributeValueMemberN{Value: "2"},
+		},
+	})
+	is.NoErr(err)
+
 	// cdc
 	i := 0
 	for {
@@ -237,15 +237,15 @@ func TestSource_CDC(t *testing.T) {
 			case 0:
 				is.True(rec2.Operation == opencdc.OperationCreate)
 				is.Equal(rec2.Payload.After, opencdc.StructuredData{PartitionKey: "pkey2", SortKey: "2"})
-			case 2:
-				is.True(rec2.Operation == opencdc.OperationDelete)
-				is.Equal(rec2.Payload.Before, opencdc.StructuredData{PartitionKey: "pkey2", SortKey: "2"})
 			case 1:
 				is.True(rec2.Operation == opencdc.OperationUpdate)
 				is.Equal(rec2.Payload.After, opencdc.StructuredData{"data": "newValue", PartitionKey: "pkey1", SortKey: "1"})
+			case 2:
+				is.True(rec2.Operation == opencdc.OperationDelete)
+				is.Equal(rec2.Payload.Before, opencdc.StructuredData{PartitionKey: "pkey2", SortKey: "2"})
 			}
+			i++
 		}
-		i++
 		if i == 3 {
 			break
 		}
@@ -279,8 +279,10 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 	}
 
 	t.Cleanup(func() {
-		clearTable(ctx, client, table, PartitionKey, SortKey)
-		deleteTable(ctx, client, table)
+		err := deleteTable(ctx, client, table)
+		if err != nil {
+			t.Logf("failed to delete the table: %v", err)
+		}
 	})
 
 	return client, cfg
@@ -304,54 +306,18 @@ func newDynamoClients(ctx context.Context, cfg map[string]string) (*dynamodb.Cli
 }
 
 func insertRecord(ctx context.Context, client *dynamodb.Client, tableName string, from int, to int) error {
-	for i := from; i <= to-from; i++ {
+	for i := 0; i < to-from; i++ {
 		_, err := client.PutItem(ctx, &dynamodb.PutItemInput{
 			TableName: aws.String(tableName),
 			Item: map[string]types.AttributeValue{
-				PartitionKey: &types.AttributeValueMemberS{Value: fmt.Sprintf("pkey%d", i)},
-				SortKey:      &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", i)},
+				PartitionKey: &types.AttributeValueMemberS{Value: fmt.Sprintf("pkey%d", from+i)},
+				SortKey:      &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", from+i)},
 			},
 		})
 		if err != nil {
 			return fmt.Errorf("error inserting record: %w", err)
 		}
 	}
-	return nil
-}
-
-func clearTable(ctx context.Context, client *dynamodb.Client, tableName string, partitionKey string, sortKey string) error {
-	// Scan the table to get all items
-	scanInput := &dynamodb.ScanInput{
-		TableName: aws.String(tableName),
-	}
-	scanOutput, err := client.Scan(ctx, scanInput)
-	if err != nil {
-		return fmt.Errorf("failed to scan table: %w", err)
-	}
-
-	// Loop over all items and delete them
-	for _, item := range scanOutput.Items {
-		partitionKeyValue := item[partitionKey].(*types.AttributeValueMemberS).Value
-		deleteInput := &dynamodb.DeleteItemInput{
-			TableName: aws.String(tableName),
-			Key: map[string]types.AttributeValue{
-				partitionKey: &types.AttributeValueMemberS{Value: partitionKeyValue},
-			},
-		}
-
-		// If the table has a sort key, include it in the delete input
-		if sortKey != "" {
-			sortKeyValue := item[sortKey].(*types.AttributeValueMemberN).Value
-			deleteInput.Key[sortKey] = &types.AttributeValueMemberN{Value: sortKeyValue}
-		}
-
-		// Delete the item
-		_, err = client.DeleteItem(ctx, deleteInput)
-		if err != nil {
-			return fmt.Errorf("failed to delete item with key %v: %w", deleteInput.Key, err)
-		}
-	}
-
 	return nil
 }
 

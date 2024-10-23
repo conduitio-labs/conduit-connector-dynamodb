@@ -1,5 +1,4 @@
 # Conduit Connector for DynamoDB
-![connector-dynamodb-readme](https://static.scarf.sh/a.png?x-pxid=cbb3901b-e502-4106-aa10-0b0726532dd6)
 The DynamoDB connector is one of [Conduit](https://github.com/ConduitIO/conduit) standalone plugins. It provides a source
 connector for [DynamoDB](https://aws.amazon.com/dynamodb/).
 
@@ -38,4 +37,4 @@ so you need to enable the stream before running the connector. Check out the doc
 
 <!-- Todo: working on adding some implementation details -->
 
-![scarf pixel conduit-site-docs-features](https://static.scarf.sh/a.png?x-pxid=cbb3901b-e502-4106-aa10-0b0726532dd6)
+![scarf pixel connector-dynamodb-readme](https://static.scarf.sh/a.png?x-pxid=cbb3901b-e502-4106-aa10-0b0726532dd6)
