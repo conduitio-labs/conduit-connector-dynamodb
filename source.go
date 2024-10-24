@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -28,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
+	smithyendpoints "github.com/aws/smithy-go/endpoints"
 	"github.com/conduitio-labs/conduit-connector-dynamodb/iterator"
 	"github.com/conduitio-labs/conduit-connector-dynamodb/position"
 	cconfig "github.com/conduitio/conduit-commons/config"
@@ -54,6 +56,8 @@ type SourceConfig struct {
 	AWSAccessKeyID string `json:"aws.accessKeyId" validate:"required"`
 	// AWS secret access key.
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
+	// AWSURL The URL for AWS (useful when testing the connector with localstack).
+	AWSURL string `json:"aws.url"`
 	// polling period for the CDC mode, formatted as a time.Duration string.
 	PollingPeriod time.Duration `json:"pollingPeriod" default:"1s"`
 	// skipSnapshot determines weather to skip the snapshot or not.
@@ -91,11 +95,25 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 		config.WithCredentialsProvider(aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(s.config.AWSAccessKeyID, s.config.AWSSecretAccessKey, ""))),
 	)
 	if err != nil {
-		return fmt.Errorf("error creating AWS session: %w", err)
+		return fmt.Errorf("could not load AWS config: %w", err)
 	}
 
-	s.dynamoDBClient = dynamodb.NewFromConfig(cfg)
-	s.streamsClient = dynamodbstreams.NewFromConfig(cfg)
+	// Set the endpoint if provided for testing
+	if s.config.AWSURL != "" {
+		s.dynamoDBClient = dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
+			o.EndpointResolverV2 = staticResolver{
+				BaseURL: s.config.AWSURL,
+			}
+		})
+		s.streamsClient = dynamodbstreams.NewFromConfig(cfg, func(o *dynamodbstreams.Options) {
+			o.EndpointResolverV2 = staticStreamResolver{
+				BaseURL: s.config.AWSURL,
+			}
+		})
+	} else {
+		s.dynamoDBClient = dynamodb.NewFromConfig(cfg)
+		s.streamsClient = dynamodbstreams.NewFromConfig(cfg)
+	}
 
 	partitionKey, sortKey, err := s.getKeyNamesFromTable(ctx)
 	if err != nil {
@@ -108,10 +126,10 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 
 	p, err := position.ParseRecordPosition(pos)
 	if err != nil {
-		return fmt.Errorf("error parssing position: %w", err)
+		return fmt.Errorf("error parsing position: %w", err)
 	}
 
-	// create the needed iterator
+	// Create the needed iterator
 	var itr Iterator
 	if s.config.SkipSnapshot {
 		itr, err = iterator.NewCDCIterator(ctx, s.config.Table, partitionKey, sortKey, s.config.PollingPeriod, s.streamsClient, s.streamArn, p)
@@ -171,7 +189,10 @@ func enableStream(ctx context.Context, client *dynamodb.Client, tableName string
 		},
 	}
 	_, err := client.UpdateTable(ctx, updateTableInput)
-	return fmt.Errorf("failed to enable stream on DynamoDB table: %w", err)
+	if err != nil {
+		return fmt.Errorf("failed to enable stream on DynamoDB table: %w", err)
+	}
+	return nil
 }
 
 func (s *Source) prepareStream(ctx context.Context) error {
@@ -249,4 +270,32 @@ func (s *Source) getKeyNamesFromTable(ctx context.Context) (partitionKey string,
 	}
 
 	return partitionKey, sortKey, nil
+}
+
+// staticResolver used to connect to a DynamoDB URL, for tests.
+type staticResolver struct {
+	BaseURL string
+}
+
+func (s staticResolver) ResolveEndpoint(_ context.Context, _ dynamodb.EndpointParameters) (smithyendpoints.Endpoint, error) {
+	u, err := url.Parse(s.BaseURL)
+	if err != nil {
+		return smithyendpoints.Endpoint{}, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	return smithyendpoints.Endpoint{URI: *u}, nil
+}
+
+// staticStreamResolver used to connect to a DynamoDB URL, for tests.
+type staticStreamResolver struct {
+	BaseURL string
+}
+
+func (s staticStreamResolver) ResolveEndpoint(_ context.Context, _ dynamodbstreams.EndpointParameters) (smithyendpoints.Endpoint, error) {
+	u, err := url.Parse(s.BaseURL)
+	if err != nil {
+		return smithyendpoints.Endpoint{}, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	return smithyendpoints.Endpoint{URI: *u}, nil
 }

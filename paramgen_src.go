@@ -11,6 +11,7 @@ const (
 	SourceConfigAwsAccessKeyId     = "aws.accessKeyId"
 	SourceConfigAwsRegion          = "aws.region"
 	SourceConfigAwsSecretAccessKey = "aws.secretAccessKey"
+	SourceConfigAwsUrl             = "aws.url"
 	SourceConfigPollingPeriod      = "pollingPeriod"
 	SourceConfigSkipSnapshot       = "skipSnapshot"
 	SourceConfigTable              = "table"
@@ -41,6 +42,12 @@ func (SourceConfig) Parameters() map[string]config.Parameter {
 			Validations: []config.Validation{
 				config.ValidationRequired{},
 			},
+		},
+		SourceConfigAwsUrl: {
+			Default:     "",
+			Description: "AWSURL The URL for AWS (useful when testing the connector with localstack).",
+			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{},
 		},
 		SourceConfigPollingPeriod: {
 			Default:     "1s",
