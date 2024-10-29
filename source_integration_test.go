@@ -165,7 +165,7 @@ func TestSource_EmptyTable(t *testing.T) {
 			continue
 		}
 		is.NoErr(err)
-		is.Equal(rec.Payload.After, opencdc.StructuredData{PartitionKey: fmt.Sprintf("pkey0"), SortKey: fmt.Sprintf("0")})
+		is.Equal(rec.Payload.After, opencdc.StructuredData{PartitionKey: "pkey0", SortKey: "0"})
 		is.Equal(rec.Operation, opencdc.OperationCreate)
 		break
 	}
