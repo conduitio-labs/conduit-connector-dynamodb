@@ -8,17 +8,21 @@ Run `make build` to build the connector.
 
 ## Testing
 
-Run `make test` to run all the unit tests.
-
 Run `make test-integration` to run all the integration tests. Tests require Docker to be installed and running.
 The command will handle starting and stopping docker containers for you.
+
+If you want to run the integration tests against your AWS DynamoDB instead of docker, You must set the environment
+variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) before running `make test`, 
+or before running the tests manually.
 
 ## Source
 A source connector that pulls data from a DynamoDB table to downstream resources via Conduit.
 
 The connector starts with a snapshot of the data currently existent in the table, sends these records to the 
 destination, then starts the CDC (Change Data Capture) mode which will listen to events happening on the table
-in real-time, and sends these event records to the destination (these events include: `updates`, `deletes`, and `inserts`).
+in real-time, and sends these events' records to the destination (these events include: `updates`, `deletes`, and `inserts`).
+You can opt out from taking the snapshot by setting the parameter `skipSnapshot` to `true`, meaning that only the CDC
+events will be captured.
 
 The source connector uses [DynamoDB Streams](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html) to get CDC events,
 so you need to enable the stream before running the connector. Check out the documentation for [how to enable a DynamoDB Stream](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html#Streams.Enabling).

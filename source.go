@@ -230,26 +230,23 @@ func (s *Source) prepareStream(ctx context.Context) error {
 	return nil
 }
 
-// todo: this method doesn't work as expected, stream is created but not ready to fetch data from yet.
 func (s *Source) waitForStreamToBeEnabled(ctx context.Context) (*dynamodb.DescribeTableOutput, error) {
 	sdk.Logger(ctx).Info().Msg("waiting for stream to be enabled...")
 	for {
+		// Wait before checking
+		time.Sleep(5 * time.Second)
 		// Describe the table to check stream status
 		describeTableInput := &dynamodb.DescribeTableInput{
 			TableName: aws.String(s.config.Table),
 		}
-
 		describeTableOutput, err := s.dynamoDBClient.DescribeTable(ctx, describeTableInput)
 		if err != nil {
 			return nil, fmt.Errorf("error describing DynamoDB table: %w", err)
 		}
-
 		// Check if the stream is enabled
 		if describeTableOutput.Table.StreamSpecification != nil && aws.ToBool(describeTableOutput.Table.StreamSpecification.StreamEnabled) {
 			return describeTableOutput, nil
 		}
-		// Wait before checking again
-		time.Sleep(2 * time.Second)
 	}
 }
 
