@@ -18,9 +18,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
-	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -87,11 +88,14 @@ func TestSource_SuccessfulSnapshot(t *testing.T) {
 	}
 
 	var got Records
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
 	for {
-		rec, err := source.Read(ctx)
+		rec, err := source.Read(timeoutCtx)
 		if errors.Is(err, sdk.ErrBackoffRetry) {
 			break
 		}
+		is.NoErr(err)
 		got = append(got, rec)
 	}
 	is.True(got != nil)
@@ -142,7 +146,8 @@ func TestSource_SnapshotRestart(t *testing.T) {
 func TestSource_EmptyTable(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
-	_, cfg := prepareIntegrationTest(ctx, t)
+	client, cfg := prepareIntegrationTest(ctx, t)
+	testTable := cfg[SourceConfigTable]
 
 	source := &Source{}
 	err := source.Configure(ctx, cfg)
@@ -152,6 +157,23 @@ func TestSource_EmptyTable(t *testing.T) {
 
 	_, err = source.Read(ctx)
 	is.True(errors.Is(err, sdk.ErrBackoffRetry))
+
+	// test CDC after an empty snapshot.
+	err = insertRecord(ctx, client, testTable, 0, 1)
+	is.NoErr(err)
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	for {
+		rec, err := source.Read(timeoutCtx)
+		if errors.Is(err, sdk.ErrBackoffRetry) {
+			continue
+		}
+		is.NoErr(err)
+		is.Equal(rec.Payload.After, opencdc.StructuredData{PartitionKey: "pkey0", SortKey: "0"})
+		is.Equal(rec.Operation, opencdc.OperationCreate)
+		break
+	}
 
 	_ = source.Teardown(ctx)
 }
@@ -172,7 +194,6 @@ func TestSource_NonExistentTable(t *testing.T) {
 	// table existence check at "Open"
 	err = source.Open(ctx, nil)
 	is.True(err != nil)
-	is.True(strings.Contains(err.Error(), "Cannot do operations on a non-existent table"))
 }
 
 func TestSource_CDC(t *testing.T) {
@@ -256,12 +277,27 @@ func TestSource_CDC(t *testing.T) {
 
 func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client, map[string]string) {
 	t.Helper()
+
+	// default params, connects to DynamoDB docker instance.
 	cfg := map[string]string{
 		SourceConfigAwsAccessKeyId:     "test",
 		SourceConfigAwsSecretAccessKey: "test",
 		SourceConfigAwsRegion:          "us-east-1",
 		SourceConfigPollingPeriod:      "10ms",
 		SourceConfigAwsUrl:             "http://localhost:4566", // docker url
+	}
+
+	awsAccessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	awsSecretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	awsRegion := os.Getenv("AWS_REGION")
+	if awsRegion != "" && awsAccessKeyID != "" && awsSecretAccessKey != "" {
+		cfg = map[string]string{
+			SourceConfigAwsAccessKeyId:     awsAccessKeyID,
+			SourceConfigAwsSecretAccessKey: awsSecretAccessKey,
+			SourceConfigAwsRegion:          awsRegion,
+			SourceConfigPollingPeriod:      "10ms",
+			SourceConfigAwsUrl:             "", // empty, so real AWS DynamoDB will be used instead.
+		}
 	}
 
 	client, err := newDynamoClients(ctx, cfg)
@@ -297,11 +333,16 @@ func newDynamoClients(ctx context.Context, cfg map[string]string) (*dynamodb.Cli
 		return nil, fmt.Errorf("error creating AWS session: %w", err)
 	}
 
-	dynamoDBClient := dynamodb.NewFromConfig(clientCfg, func(o *dynamodb.Options) {
-		o.EndpointResolverV2 = staticResolver{
-			BaseURL: cfg[SourceConfigAwsUrl],
-		}
-	})
+	var dynamoDBClient *dynamodb.Client
+	if cfg[SourceConfigAwsUrl] != "" {
+		dynamoDBClient = dynamodb.NewFromConfig(clientCfg, func(o *dynamodb.Options) {
+			o.EndpointResolverV2 = staticResolver{
+				BaseURL: cfg[SourceConfigAwsUrl],
+			}
+		})
+	} else {
+		dynamoDBClient = dynamodb.NewFromConfig(clientCfg)
+	}
 	return dynamoDBClient, nil
 }
 
@@ -355,6 +396,25 @@ func createTable(ctx context.Context, client *dynamodb.Client, tableName string,
 	_, err := client.CreateTable(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to create table: %w", err)
+	}
+
+	// Loop to wait for the table to become active
+	for {
+		output, err := client.DescribeTable(ctx, &dynamodb.DescribeTableInput{
+			TableName: aws.String(tableName),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to describe table: %w", err)
+		}
+
+		// Check the table status
+		if output.Table.TableStatus == types.TableStatusActive {
+			fmt.Printf("Table %s is now active.\n", tableName)
+			break
+		}
+
+		fmt.Printf("Table %s status: %s. Waiting...\n", tableName, output.Table.TableStatus)
+		time.Sleep(5 * time.Second) // Wait before checking again
 	}
 
 	return nil

@@ -91,7 +91,12 @@ func NewCombinedIterator(
 func (c *CombinedIterator) HasNext(ctx context.Context) bool {
 	switch {
 	case c.snapshotIterator != nil:
-		return c.snapshotIterator.HasNext(ctx)
+		ok := c.snapshotIterator.HasNext(ctx)
+		// if the table is empty
+		if !ok {
+			c.snapshotIterator = nil
+		}
+		return ok
 	case c.cdcIterator != nil:
 		return c.cdcIterator.HasNext(ctx)
 	default:
