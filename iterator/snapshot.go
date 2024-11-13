@@ -87,7 +87,7 @@ func (s *SnapshotIterator) HasNext(ctx context.Context) bool {
 		s.firstIt = false
 		err := s.refreshPage(ctx)
 		if err != nil {
-			sdk.Logger(ctx).Error().Err(err).Msg("failed to get the next page of the snapshot.")
+			sdk.Logger(ctx).Error().Err(err).Msg("failed to get the next page of the snapshot, or the table is empty.")
 			return false
 		}
 		return true
