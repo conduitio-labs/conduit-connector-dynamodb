@@ -88,11 +88,14 @@ func TestSource_SuccessfulSnapshot(t *testing.T) {
 	}
 
 	var got Records
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
 	for {
-		rec, err := source.Read(ctx)
+		rec, err := source.Read(timeoutCtx)
 		if errors.Is(err, sdk.ErrBackoffRetry) {
 			break
 		}
+		is.NoErr(err)
 		got = append(got, rec)
 	}
 	is.True(got != nil)
@@ -159,8 +162,10 @@ func TestSource_EmptyTable(t *testing.T) {
 	err = insertRecord(ctx, client, testTable, 0, 1)
 	is.NoErr(err)
 
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
 	for {
-		rec, err := source.Read(ctx)
+		rec, err := source.Read(timeoutCtx)
 		if errors.Is(err, sdk.ErrBackoffRetry) {
 			continue
 		}
