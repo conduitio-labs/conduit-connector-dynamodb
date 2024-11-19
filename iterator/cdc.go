@@ -239,7 +239,6 @@ func (c *CDCIterator) processShard(ctx context.Context, s *shardProcessor) error
 			if err != nil {
 				return fmt.Errorf("error getting records from shard %s: %w", s.shardID, err)
 			}
-
 			// process records
 			changed := false
 			for _, record := range out.Records {
@@ -276,7 +275,6 @@ func (c *CDCIterator) processShard(ctx context.Context, s *shardProcessor) error
 			if s.shardIterator == nil {
 				return nil
 			}
-
 			// sleep to not cause CPU overhead
 			time.Sleep(1 * time.Second)
 		}
