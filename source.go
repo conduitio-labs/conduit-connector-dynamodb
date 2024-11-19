@@ -132,7 +132,7 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 	// Create the needed iterator
 	var itr Iterator
 	if s.config.SkipSnapshot {
-		itr, err = iterator.NewCDCIterator(ctx, s.config.Table, partitionKey, sortKey, s.config.PollingPeriod, s.streamsClient, s.streamArn, p)
+		itr, err = iterator.NewCDCIterator(ctx, s.config.Table, partitionKey, sortKey, s.streamsClient, s.streamArn, p)
 		if err != nil {
 			return fmt.Errorf("error creating CDC iterator: %w", err)
 		}
