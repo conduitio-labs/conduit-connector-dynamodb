@@ -57,7 +57,7 @@ func (SourceConfig) Parameters() map[string]config.Parameter {
 			Validations: []config.Validation{},
 		},
 		SourceConfigRecordsPollingPeriod: {
-			Default:     "5s",
+			Default:     "1s",
 			Description: "records polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.",
 			Type:        config.ParameterTypeDuration,
 			Validations: []config.Validation{},
