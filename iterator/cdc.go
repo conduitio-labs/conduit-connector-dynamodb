@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"sort"
 	"sync"
 	"time"
@@ -39,16 +38,16 @@ type CDCIterator struct {
 	streamsClient *dynamodbstreams.Client
 	cache         []recordWithTimestamp
 	cacheLock     sync.Mutex
-	cacheCond     *sync.Cond
 	streamArn     string
 	tomb          *tomb.Tomb
-	p             position.Position
 	shards        map[string]*shardProcessor
+	lastPosition  position.Position
 }
 
 type recordWithTimestamp struct {
-	Record stypes.Record
-	Time   time.Time
+	Record  stypes.Record
+	Time    time.Time
+	ShardID string
 }
 
 type shardProcessor struct {
@@ -65,10 +64,9 @@ func NewCDCIterator(ctx context.Context, tableName string, pKey string, sKey str
 		streamsClient: client,
 		streamArn:     streamArn,
 		tomb:          &tomb.Tomb{},
-		p:             p,
 		shards:        make(map[string]*shardProcessor),
+		lastPosition:  p,
 	}
-	c.cacheCond = sync.NewCond(&c.cacheLock)
 
 	// start listening to changes
 	c.tomb, ctx = tomb.WithContext(ctx)
@@ -102,19 +100,14 @@ func (c *CDCIterator) Next(ctx context.Context) (opencdc.Record, error) {
 	c.cache = c.cache[1:]
 	c.cacheLock.Unlock()
 
-	return c.getOpenCDCRec(recWithTimestamp.Record)
+	return c.getOpenCDCRec(recWithTimestamp)
 }
 
 func (c *CDCIterator) Stop() {
 	c.tomb.Kill(errors.New("cdc iterator is stopped"))
-	c.cacheCond.Broadcast()
 }
 
 func (c *CDCIterator) startCDC(ctx context.Context) error {
-	defer func() {
-		c.cacheCond.Broadcast()
-	}()
-
 	// start a goroutine to discover shards
 	c.tomb.Go(func() error {
 		return c.discoverShards(ctx)
@@ -160,51 +153,21 @@ func (c *CDCIterator) updateShards(ctx context.Context) error {
 	}
 
 	// determine shards to process
-	var shardsToProcess []stypes.Shard
-	if c.p.SequenceNumber == "" {
-		// if no sequence number, process all shards
-		shardsToProcess = describeStreamOutput.StreamDescription.Shards
-	}
-	if c.p.SequenceNumber != "" {
-		// find the shard containing the sequence number, start processing from it.
-		foundShard := false
-		for _, shard := range describeStreamOutput.StreamDescription.Shards {
-			startSeqNum := *shard.SequenceNumberRange.StartingSequenceNumber
-			endSeqNum := "" // open ended shard
-			if shard.SequenceNumberRange.EndingSequenceNumber != nil {
-				endSeqNum = *shard.SequenceNumberRange.EndingSequenceNumber
-			}
-
-			if foundShard {
-				// found the shard, process all shards next.
-				shardsToProcess = append(shardsToProcess, shard)
-			}
-			// check if the sequence number is in this shard
-			if isSequenceNumberInRange(c.p.SequenceNumber, startSeqNum, endSeqNum) {
-				foundShard = true
-				shardsToProcess = append(shardsToProcess, shard)
-			}
-		}
-		if !foundShard {
-			sdk.Logger(ctx).Error().Msgf("Sequence number %s not found in any shard, starting from the beginning.", c.p.SequenceNumber)
-			c.p.SequenceNumber = ""
-			return c.updateShards(ctx) // Retry with TRIM_HORIZON
-		}
-	}
-
-	// update shards map
+	shardsToProcess := describeStreamOutput.StreamDescription.Shards
 	for _, shard := range shardsToProcess {
 		shardID := *shard.ShardId
 		if _, exists := c.shards[shardID]; !exists {
 			// start processing this shard
-			shardProcessor, err := c.startShardProcessor(ctx, shard, c.p.SequenceNumber)
+			seqNum, ok := c.lastPosition.SequenceNumberMap[shardID]
+			if !ok {
+				seqNum = "" // to use trim horizon, which will start reading from the beginning of the shard.
+			}
+			shardProcessor, err := c.startShardProcessor(ctx, shard, seqNum)
 			if err != nil {
 				sdk.Logger(ctx).Error().Err(err).Msgf("Failed to start shard processor for shard %s", shardID)
 				continue
 			}
 			c.shards[shardID] = shardProcessor
-			// reset SequenceNumber so that next shards uses TrimHorizon
-			c.p.SequenceNumber = ""
 		}
 	}
 	return nil
@@ -250,21 +213,6 @@ func (c *CDCIterator) startShardProcessor(ctx context.Context, shard stypes.Shar
 	return shardProcessor, nil
 }
 
-func isSequenceNumberInRange(targetSeqNum, startSeqNum, endSeqNum string) bool {
-	target := new(big.Int)
-	start := new(big.Int)
-	end := new(big.Int)
-
-	target.SetString(targetSeqNum, 10)
-	start.SetString(startSeqNum, 10)
-
-	if endSeqNum != "" {
-		end.SetString(endSeqNum, 10)
-		return target.Cmp(start) >= 0 && target.Cmp(end) < 0
-	}
-	return target.Cmp(start) >= 0
-}
-
 func (c *CDCIterator) processShard(ctx context.Context, s *shardProcessor) error {
 	for {
 		select {
@@ -283,28 +231,28 @@ func (c *CDCIterator) processShard(ctx context.Context, s *shardProcessor) error
 			// process records
 			changed := false
 			for _, record := range out.Records {
-				if record.Dynamodb.ApproximateCreationDateTime != nil && !record.Dynamodb.ApproximateCreationDateTime.After(c.p.Time) {
-					continue
+				if c.lastPosition.AfterSnapshot {
+					if record.Dynamodb.ApproximateCreationDateTime != nil && !record.Dynamodb.ApproximateCreationDateTime.After(c.lastPosition.Time) {
+						continue
+					}
+				}
+				recWithTimestamp := recordWithTimestamp{
+					Record:  record,
+					ShardID: s.shardID,
+					Time:    *record.Dynamodb.ApproximateCreationDateTime,
 				}
 				if !changed {
 					c.cacheLock.Lock()
 					changed = true
 				}
-				recWithTimestamp := recordWithTimestamp{
-					Record: record,
-					Time:   *record.Dynamodb.ApproximateCreationDateTime,
-				}
 				// add to buffer
 				c.cache = append(c.cache, recWithTimestamp)
 			}
-
-			// sort the buffer after all records were added
 			if changed {
 				sort.Slice(c.cache, func(i, j int) bool {
 					return c.cache[i].Time.Before(c.cache[j].Time)
 				})
 				c.cacheLock.Unlock()
-				c.cacheCond.Signal()
 			}
 
 			s.shardIterator = out.NextShardIterator
@@ -360,7 +308,9 @@ func (c *CDCIterator) getRecMap(item map[string]stypes.AttributeValue) map[strin
 	return stringMap
 }
 
-func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
+func (c *CDCIterator) getOpenCDCRec(recWithTS recordWithTimestamp) (opencdc.Record, error) {
+	rec := recWithTS.Record
+
 	newImage := c.getRecMap(rec.Dynamodb.NewImage)
 	oldImage := c.getRecMap(rec.Dynamodb.OldImage)
 	image := newImage
@@ -373,12 +323,10 @@ func (c *CDCIterator) getOpenCDCRec(rec stypes.Record) (opencdc.Record, error) {
 	if c.sortKey != "" {
 		structuredKey[c.sortKey] = image[c.sortKey]
 	}
-	pos := position.Position{
-		IteratorType:   position.TypeCDC,
-		SequenceNumber: *rec.Dynamodb.SequenceNumber,
-		Time:           *rec.Dynamodb.ApproximateCreationDateTime,
-	}
-	cdcPos, err := pos.ToRecordPosition()
+
+	// lock position
+	c.lastPosition.SequenceNumberMap[recWithTS.ShardID] = *rec.Dynamodb.SequenceNumber
+	cdcPos, err := c.lastPosition.ToRecordPosition()
 	if err != nil {
 		return opencdc.Record{}, fmt.Errorf("failed to build record's CDC position: %w", err)
 	}
