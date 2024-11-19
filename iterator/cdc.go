@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -39,7 +40,6 @@ type CDCIterator struct {
 	cacheLock     sync.Mutex
 	streamArn     string
 	tomb          *tomb.Tomb
-	p             position.Position
 	shards        map[string]*shardProcessor
 	lastPosition  position.Position
 }
@@ -64,8 +64,8 @@ func NewCDCIterator(ctx context.Context, tableName string, pKey string, sKey str
 		streamsClient: client,
 		streamArn:     streamArn,
 		tomb:          &tomb.Tomb{},
-		p:             p,
 		shards:        make(map[string]*shardProcessor),
+		lastPosition:  p,
 	}
 
 	// start listening to changes
@@ -160,7 +160,7 @@ func (c *CDCIterator) updateShards(ctx context.Context) error {
 			// start processing this shard
 			seqNum, ok := c.lastPosition.SequenceNumberMap[shardID]
 			if !ok {
-				seqNum = *shard.SequenceNumberRange.StartingSequenceNumber
+				seqNum = "" // to use trim horizon, which will start reading from the beginning of the shard.
 			}
 			shardProcessor, err := c.startShardProcessor(ctx, shard, seqNum)
 			if err != nil {
@@ -229,14 +229,30 @@ func (c *CDCIterator) processShard(ctx context.Context, s *shardProcessor) error
 			}
 
 			// process records
+			changed := false
 			for _, record := range out.Records {
+				if c.lastPosition.AfterSnapshot {
+					if record.Dynamodb.ApproximateCreationDateTime != nil && !record.Dynamodb.ApproximateCreationDateTime.After(c.lastPosition.Time) {
+						continue
+					}
+				}
 				recWithTimestamp := recordWithTimestamp{
 					Record:  record,
 					ShardID: s.shardID,
 					Time:    *record.Dynamodb.ApproximateCreationDateTime,
 				}
+				if !changed {
+					c.cacheLock.Lock()
+					changed = true
+				}
 				// add to buffer
 				c.cache = append(c.cache, recWithTimestamp)
+			}
+			if changed {
+				sort.Slice(c.cache, func(i, j int) bool {
+					return c.cache[i].Time.Before(c.cache[j].Time)
+				})
+				c.cacheLock.Unlock()
 			}
 
 			s.shardIterator = out.NextShardIterator

@@ -25,16 +25,20 @@ import (
 
 func TestParseSDKPosition(t *testing.T) {
 	validPosition := Position{
-		IteratorType:   TypeCDC,
-		PartitionKey:   "key",
-		SequenceNumber: "my-sequence-number",
-		Time:           time.Time{},
+		IteratorType: TypeCDC,
+		PartitionKey: "key",
+		SequenceNumberMap: map[string]string{
+			"shardId": "12345",
+		},
+		Time: time.Time{},
 	}
 
 	wrongPosType := Position{
-		IteratorType:   3, // non-existent type
-		PartitionKey:   "key",
-		SequenceNumber: "my-sequence-number",
+		IteratorType: 3, // non-existent type
+		PartitionKey: "key",
+		SequenceNumberMap: map[string]string{
+			"shardId": "12345",
+		},
 	}
 	is := is.New(t)
 	posBytes, err := json.Marshal(validPosition)
