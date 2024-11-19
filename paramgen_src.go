@@ -8,30 +8,18 @@ import (
 )
 
 const (
-	SourceConfigDiscoveryPollingPeriod = "DiscoveryPollingPeriod"
-	SourceConfigRecordsPollingPeriod   = "RecordsPollingPeriod"
 	SourceConfigAwsAccessKeyId         = "aws.accessKeyId"
 	SourceConfigAwsRegion              = "aws.region"
 	SourceConfigAwsSecretAccessKey     = "aws.secretAccessKey"
 	SourceConfigAwsUrl                 = "aws.url"
+	SourceConfigDiscoveryPollingPeriod = "discoveryPollingPeriod"
+	SourceConfigRecordsPollingPeriod   = "recordsPollingPeriod"
 	SourceConfigSkipSnapshot           = "skipSnapshot"
 	SourceConfigTable                  = "table"
 )
 
 func (SourceConfig) Parameters() map[string]config.Parameter {
 	return map[string]config.Parameter{
-		SourceConfigDiscoveryPollingPeriod: {
-			Default:     "10s",
-			Description: "discovery polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.",
-			Type:        config.ParameterTypeDuration,
-			Validations: []config.Validation{},
-		},
-		SourceConfigRecordsPollingPeriod: {
-			Default:     "5s",
-			Description: "records polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.",
-			Type:        config.ParameterTypeDuration,
-			Validations: []config.Validation{},
-		},
 		SourceConfigAwsAccessKeyId: {
 			Default:     "",
 			Description: "AWS access key id.",
@@ -60,6 +48,18 @@ func (SourceConfig) Parameters() map[string]config.Parameter {
 			Default:     "",
 			Description: "AWSURL The URL for AWS (useful when testing the connector with localstack).",
 			Type:        config.ParameterTypeString,
+			Validations: []config.Validation{},
+		},
+		SourceConfigDiscoveryPollingPeriod: {
+			Default:     "10s",
+			Description: "discovery polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.",
+			Type:        config.ParameterTypeDuration,
+			Validations: []config.Validation{},
+		},
+		SourceConfigRecordsPollingPeriod: {
+			Default:     "5s",
+			Description: "records polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.",
+			Type:        config.ParameterTypeDuration,
 			Validations: []config.Validation{},
 		},
 		SourceConfigSkipSnapshot: {

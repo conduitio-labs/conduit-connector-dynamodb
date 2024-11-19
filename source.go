@@ -59,9 +59,9 @@ type SourceConfig struct {
 	// AWSURL The URL for AWS (useful when testing the connector with localstack).
 	AWSURL string `json:"aws.url"`
 	// discovery polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.
-	DiscoveryPollingPeriod time.Duration `json:"DiscoveryPollingPeriod" default:"10s"`
+	DiscoveryPollingPeriod time.Duration `json:"discoveryPollingPeriod" default:"10s"`
 	// records polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.
-	RecordsPollingPeriod time.Duration `json:"RecordsPollingPeriod" default:"5s"`
+	RecordsPollingPeriod time.Duration `json:"recordsPollingPeriod" default:"5s"`
 	// skipSnapshot determines weather to skip the snapshot or not.
 	SkipSnapshot bool `json:"skipSnapshot" default:"false"`
 }
