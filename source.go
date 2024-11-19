@@ -58,8 +58,8 @@ type SourceConfig struct {
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
 	// AWSURL The URL for AWS (useful when testing the connector with localstack).
 	AWSURL string `json:"aws.url"`
-	// polling period for the CDC mode, formatted as a time.Duration string.
-	PollingPeriod time.Duration `json:"pollingPeriod" default:"1s"`
+	// polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.
+	PollingPeriod time.Duration `json:"pollingPeriod" default:"10s"`
 	// skipSnapshot determines weather to skip the snapshot or not.
 	SkipSnapshot bool `json:"skipSnapshot" default:"false"`
 }
@@ -132,7 +132,7 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 	// Create the needed iterator
 	var itr Iterator
 	if s.config.SkipSnapshot {
-		itr, err = iterator.NewCDCIterator(ctx, s.config.Table, partitionKey, sortKey, s.streamsClient, s.streamArn, p)
+		itr, err = iterator.NewCDCIterator(ctx, s.config.Table, partitionKey, sortKey, s.streamsClient, s.streamArn, s.config.PollingPeriod, p)
 		if err != nil {
 			return fmt.Errorf("error creating CDC iterator: %w", err)
 		}

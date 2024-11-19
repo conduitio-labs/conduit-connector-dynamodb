@@ -50,8 +50,8 @@ func (SourceConfig) Parameters() map[string]config.Parameter {
 			Validations: []config.Validation{},
 		},
 		SourceConfigPollingPeriod: {
-			Default:     "1s",
-			Description: "polling period for the CDC mode, formatted as a time.Duration string.",
+			Default:     "10s",
+			Description: "polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.",
 			Type:        config.ParameterTypeDuration,
 			Validations: []config.Validation{},
 		},

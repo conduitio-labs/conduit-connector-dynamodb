@@ -74,7 +74,7 @@ func NewCombinedIterator(
 			return nil, fmt.Errorf("could not create the snapshot iterator: %w", err)
 		}
 		// start listening for changes while snapshot is running
-		c.cdcIterator, err = NewCDCIterator(ctx, tableName, pKey, sKey, streamsClient, streamArn, position.Position{
+		c.cdcIterator, err = NewCDCIterator(ctx, tableName, pKey, sKey, streamsClient, streamArn, pollingPeriod, position.Position{
 			IteratorType:      position.TypeCDC,
 			Time:              now,
 			AfterSnapshot:     true,
@@ -84,7 +84,7 @@ func NewCombinedIterator(
 			return nil, fmt.Errorf("could not create the CDC iterator: %w", err)
 		}
 	case position.TypeCDC:
-		c.cdcIterator, err = NewCDCIterator(ctx, tableName, pKey, sKey, streamsClient, streamArn, p)
+		c.cdcIterator, err = NewCDCIterator(ctx, tableName, pKey, sKey, streamsClient, streamArn, pollingPeriod, p)
 		if err != nil {
 			return nil, fmt.Errorf("could not create the CDC iterator: %w", err)
 		}

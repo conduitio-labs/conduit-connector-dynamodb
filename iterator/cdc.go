@@ -42,6 +42,7 @@ type CDCIterator struct {
 	tomb          *tomb.Tomb
 	shards        map[string]*shardProcessor
 	lastPosition  position.Position
+	pollingPeriod time.Duration
 }
 
 type recordWithTimestamp struct {
@@ -56,7 +57,7 @@ type shardProcessor struct {
 	tomb          *tomb.Tomb
 }
 
-func NewCDCIterator(ctx context.Context, tableName string, pKey string, sKey string, client *dynamodbstreams.Client, streamArn string, p position.Position) (*CDCIterator, error) {
+func NewCDCIterator(ctx context.Context, tableName string, pKey string, sKey string, client *dynamodbstreams.Client, streamArn string, pollingPeriod time.Duration, p position.Position) (*CDCIterator, error) {
 	c := &CDCIterator{
 		tableName:     tableName,
 		partitionKey:  pKey,
@@ -66,6 +67,7 @@ func NewCDCIterator(ctx context.Context, tableName string, pKey string, sKey str
 		tomb:          &tomb.Tomb{},
 		shards:        make(map[string]*shardProcessor),
 		lastPosition:  p,
+		pollingPeriod: pollingPeriod,
 	}
 
 	// start listening to changes
@@ -123,7 +125,7 @@ func (c *CDCIterator) startCDC(ctx context.Context) error {
 }
 
 func (c *CDCIterator) discoverShards(ctx context.Context) error {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(c.pollingPeriod)
 	defer ticker.Stop()
 
 	for {
