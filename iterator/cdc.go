@@ -88,7 +88,7 @@ func (c *CDCIterator) Next(ctx context.Context) (opencdc.Record, error) {
 	if len(c.cache) == 0 {
 		select {
 		case <-c.tomb.Dying():
-			return opencdc.Record{}, c.tomb.Err()
+			return opencdc.Record{}, fmt.Errorf("tomb closed: %w", c.tomb.Err())
 		case <-ctx.Done():
 			return opencdc.Record{}, ctx.Err()
 		default:
@@ -139,9 +139,9 @@ func (c *CDCIterator) discoverShards(ctx context.Context) error {
 			return nil
 		case <-ticker.C:
 			// discover shards
-			err := c.updateShards()
+			err := c.updateShards(ctx)
 			if err != nil {
-				sdk.Logger(context.Background()).Error().Err(err).Msg("Failed to update shards")
+				sdk.Logger(ctx).Error().Err(err).Msg("Failed to update shards")
 			}
 		case <-ctx.Done():
 			c.stopAllShards()
@@ -150,8 +150,7 @@ func (c *CDCIterator) discoverShards(ctx context.Context) error {
 	}
 }
 
-func (c *CDCIterator) updateShards() error {
-	ctx := context.Background()
+func (c *CDCIterator) updateShards(ctx context.Context) error {
 	describeStreamOutput, err := c.streamsClient.DescribeStream(ctx, &dynamodbstreams.DescribeStreamInput{
 		StreamArn: aws.String(c.streamArn),
 	})
