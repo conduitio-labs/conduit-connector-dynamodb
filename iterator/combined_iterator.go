@@ -43,7 +43,8 @@ type CombinedIterator struct {
 func NewCombinedIterator(
 	ctx context.Context,
 	tableName, pKey, sKey string,
-	pollingPeriod time.Duration,
+	discoveryPollingPeriod time.Duration,
+	recordsPollingPeriod time.Duration,
 	client *dynamodb.Client,
 	streamsClient *dynamodbstreams.Client,
 	streamArn string,
@@ -54,7 +55,7 @@ func NewCombinedIterator(
 		tableName:     tableName,
 		partitionKey:  pKey,
 		sortKey:       sKey,
-		pollingPeriod: pollingPeriod,
+		pollingPeriod: discoveryPollingPeriod,
 		client:        client,
 		streamsClient: streamsClient,
 		streamArn:     streamArn,
@@ -74,7 +75,7 @@ func NewCombinedIterator(
 			return nil, fmt.Errorf("could not create the snapshot iterator: %w", err)
 		}
 		// start listening for changes while snapshot is running
-		c.cdcIterator, err = NewCDCIterator(ctx, tableName, pKey, sKey, streamsClient, streamArn, pollingPeriod, position.Position{
+		c.cdcIterator, err = NewCDCIterator(ctx, tableName, pKey, sKey, streamsClient, streamArn, discoveryPollingPeriod, recordsPollingPeriod, position.Position{
 			IteratorType:      position.TypeCDC,
 			Time:              now,
 			AfterSnapshot:     true,
@@ -84,7 +85,7 @@ func NewCombinedIterator(
 			return nil, fmt.Errorf("could not create the CDC iterator: %w", err)
 		}
 	case position.TypeCDC:
-		c.cdcIterator, err = NewCDCIterator(ctx, tableName, pKey, sKey, streamsClient, streamArn, pollingPeriod, p)
+		c.cdcIterator, err = NewCDCIterator(ctx, tableName, pKey, sKey, streamsClient, streamArn, discoveryPollingPeriod, recordsPollingPeriod, p)
 		if err != nil {
 			return nil, fmt.Errorf("could not create the CDC iterator: %w", err)
 		}

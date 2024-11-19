@@ -29,15 +29,16 @@ so you need to enable the stream before running the connector. Check out the doc
 
 ### Configuration
 
-| name                  | description                                                                                                                       | required | default | example               |
-|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------|----------|---------|-----------------------|
-| `table`               | Table is the DynamoDB table name to pull data from.                                                                               | true     |         | Employees             |
-| `aws.region`          | AWS region.                                                                                                                       | true     |         | us-east-1             |
-| `aws.accessKeyId`     | AWS access key id.                                                                                                                | true     |         | MY_ACCESS_KEY_ID      |
-| `aws.secretAccessKey` | AWS secret access key.                                                                                                            | true     |         | MY_SECRET_ACCESS_KEY  |
-| `aws.url`             | The URL for AWS (useful when testing the connector with localstack).                                                              | false    |         | http://localhost:4566 |
-| `pollingPeriod`       | Polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string. | false    | 10s     | 100ms, 1m, 10m, 1h    |
-| `skipSnapshot`        | Determines weather to skip the snapshot or not.                                                                                   | false    | false   | true                  |
+| name                     | description                                                                                                                       | required | default | example               |
+|--------------------------|-----------------------------------------------------------------------------------------------------------------------------------|----------|---------|-----------------------|
+| `table`                  | Table is the DynamoDB table name to pull data from.                                                                               | true     |         | Employees             |
+| `aws.region`             | AWS region.                                                                                                                       | true     |         | us-east-1             |
+| `aws.accessKeyId`        | AWS access key id.                                                                                                                | true     |         | MY_ACCESS_KEY_ID      |
+| `aws.secretAccessKey`    | AWS secret access key.                                                                                                            | true     |         | MY_SECRET_ACCESS_KEY  |
+| `aws.url`                | The URL for AWS (useful when testing the connector with localstack).                                                              | false    |         | http://localhost:4566 |
+| `discoveryPollingPeriod` | Polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string. | false    | 10s     | 100ms, 1m, 10m, 1h    |
+| `recordsPollingPeriod`   | Polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.                | false    | 5s      | 100ms, 1m, 10m, 1h    |
+| `skipSnapshot`           | Determines weather to skip the snapshot or not.                                                                                   | false    | false   | true                  |
 
 <!-- Todo: working on adding some implementation details -->
 

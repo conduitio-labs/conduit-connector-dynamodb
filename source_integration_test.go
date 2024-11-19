@@ -284,11 +284,11 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 
 	// default params, connects to DynamoDB docker instance.
 	cfg := map[string]string{
-		SourceConfigAwsAccessKeyId:     "test",
-		SourceConfigAwsSecretAccessKey: "test",
-		SourceConfigAwsRegion:          "us-east-1",
-		SourceConfigPollingPeriod:      "10ms",
-		SourceConfigAwsUrl:             "http://localhost:4566", // docker url
+		SourceConfigAwsAccessKeyId:         "test",
+		SourceConfigAwsSecretAccessKey:     "test",
+		SourceConfigAwsRegion:              "us-east-1",
+		SourceConfigDiscoveryPollingPeriod: "5s",
+		SourceConfigAwsUrl:                 "http://localhost:4566", // docker url
 	}
 
 	awsAccessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
@@ -296,11 +296,11 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 	awsRegion := os.Getenv("AWS_REGION")
 	if awsRegion != "" && awsAccessKeyID != "" && awsSecretAccessKey != "" {
 		cfg = map[string]string{
-			SourceConfigAwsAccessKeyId:     awsAccessKeyID,
-			SourceConfigAwsSecretAccessKey: awsSecretAccessKey,
-			SourceConfigAwsRegion:          awsRegion,
-			SourceConfigPollingPeriod:      "10ms",
-			SourceConfigAwsUrl:             "", // empty, so real AWS DynamoDB will be used instead.
+			SourceConfigAwsAccessKeyId:         awsAccessKeyID,
+			SourceConfigAwsSecretAccessKey:     awsSecretAccessKey,
+			SourceConfigAwsRegion:              awsRegion,
+			SourceConfigDiscoveryPollingPeriod: "5s",
+			SourceConfigAwsUrl:                 "", // empty, so real AWS DynamoDB will be used instead.
 		}
 	}
 

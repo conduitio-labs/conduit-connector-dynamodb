@@ -32,18 +32,19 @@ import (
 )
 
 type CDCIterator struct {
-	tableName     string
-	partitionKey  string
-	sortKey       string
-	streamsClient *dynamodbstreams.Client
-	cache         []recordWithTimestamp
-	cacheLock     sync.Mutex
-	positionLock  sync.Mutex
-	streamArn     string
-	tomb          *tomb.Tomb
-	shards        map[string]*shardProcessor
-	lastPosition  position.Position
-	pollingPeriod time.Duration
+	tableName              string
+	partitionKey           string
+	sortKey                string
+	streamsClient          *dynamodbstreams.Client
+	cache                  []recordWithTimestamp
+	cacheLock              sync.Mutex
+	positionLock           sync.Mutex
+	streamArn              string
+	tomb                   *tomb.Tomb
+	shards                 map[string]*shardProcessor
+	lastPosition           position.Position
+	discoveryPollingPeriod time.Duration
+	recordsPollingPeriod   time.Duration
 }
 
 // todo: find a better name for this struct.
@@ -59,17 +60,18 @@ type shardProcessor struct {
 	tomb          *tomb.Tomb
 }
 
-func NewCDCIterator(ctx context.Context, tableName string, pKey string, sKey string, client *dynamodbstreams.Client, streamArn string, pollingPeriod time.Duration, p position.Position) (*CDCIterator, error) {
+func NewCDCIterator(ctx context.Context, tableName string, pKey string, sKey string, client *dynamodbstreams.Client, streamArn string, discoveryPollingPeriod time.Duration, recordsPollingPeriod time.Duration, p position.Position) (*CDCIterator, error) {
 	c := &CDCIterator{
-		tableName:     tableName,
-		partitionKey:  pKey,
-		sortKey:       sKey,
-		streamsClient: client,
-		streamArn:     streamArn,
-		tomb:          &tomb.Tomb{},
-		shards:        make(map[string]*shardProcessor),
-		lastPosition:  p,
-		pollingPeriod: pollingPeriod,
+		tableName:              tableName,
+		partitionKey:           pKey,
+		sortKey:                sKey,
+		streamsClient:          client,
+		streamArn:              streamArn,
+		tomb:                   &tomb.Tomb{},
+		shards:                 make(map[string]*shardProcessor),
+		lastPosition:           p,
+		discoveryPollingPeriod: discoveryPollingPeriod,
+		recordsPollingPeriod:   recordsPollingPeriod,
 	}
 
 	// start listening to changes
@@ -127,7 +129,7 @@ func (c *CDCIterator) startCDC(ctx context.Context) error {
 }
 
 func (c *CDCIterator) discoverShards(ctx context.Context) error {
-	ticker := time.NewTicker(c.pollingPeriod)
+	ticker := time.NewTicker(c.discoveryPollingPeriod)
 	defer ticker.Stop()
 
 	for {
@@ -226,13 +228,16 @@ func (c *CDCIterator) processShard(ctx context.Context, s *shardProcessor) error
 		delete(c.lastPosition.SequenceNumberMap, s.shardID)
 		c.positionLock.Unlock()
 	}()
+
+	ticker := time.NewTicker(c.recordsPollingPeriod)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-c.tomb.Dying():
 			return nil
 		case <-s.tomb.Dying():
 			return nil
-		default:
+		case <-ticker.C:
 			out, err := c.streamsClient.GetRecords(ctx, &dynamodbstreams.GetRecordsInput{
 				ShardIterator: s.shardIterator,
 			})
@@ -275,8 +280,6 @@ func (c *CDCIterator) processShard(ctx context.Context, s *shardProcessor) error
 			if s.shardIterator == nil {
 				return nil
 			}
-			// sleep to not cause CPU overhead
-			time.Sleep(1 * time.Second)
 		}
 	}
 }
