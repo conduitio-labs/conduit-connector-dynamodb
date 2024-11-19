@@ -157,6 +157,7 @@ func TestSource_EmptyTable(t *testing.T) {
 
 	_, err = source.Read(ctx)
 	is.True(errors.Is(err, sdk.ErrBackoffRetry))
+	time.Sleep(1 * time.Second)
 
 	// test CDC after an empty snapshot.
 	err = insertRecord(ctx, client, testTable, 0, 1)
@@ -218,6 +219,7 @@ func TestSource_CDC(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(rec.Payload.After, opencdc.StructuredData{PartitionKey: "pkey1", SortKey: "1"})
 
+	time.Sleep(1 * time.Second)
 	// add a row, will be captured by CDC
 	err = insertRecord(ctx, client, testTable, 2, 3)
 	is.NoErr(err)
@@ -251,8 +253,10 @@ func TestSource_CDC(t *testing.T) {
 
 	// cdc
 	i := 0
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
 	for {
-		rec2, err := source.Read(ctx)
+		rec2, err := source.Read(timeoutCtx)
 		if err == nil {
 			switch i {
 			case 0:
@@ -280,11 +284,12 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 
 	// default params, connects to DynamoDB docker instance.
 	cfg := map[string]string{
-		SourceConfigAwsAccessKeyId:     "test",
-		SourceConfigAwsSecretAccessKey: "test",
-		SourceConfigAwsRegion:          "us-east-1",
-		SourceConfigPollingPeriod:      "10ms",
-		SourceConfigAwsUrl:             "http://localhost:4566", // docker url
+		SourceConfigAwsAccessKeyId:         "test",
+		SourceConfigAwsSecretAccessKey:     "test",
+		SourceConfigAwsRegion:              "us-east-1",
+		SourceConfigDiscoveryPollingPeriod: "5s",
+		SourceConfigRecordsPollingPeriod:   "1s",
+		SourceConfigAwsUrl:                 "http://localhost:4566", // docker url
 	}
 
 	awsAccessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
@@ -292,11 +297,12 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 	awsRegion := os.Getenv("AWS_REGION")
 	if awsRegion != "" && awsAccessKeyID != "" && awsSecretAccessKey != "" {
 		cfg = map[string]string{
-			SourceConfigAwsAccessKeyId:     awsAccessKeyID,
-			SourceConfigAwsSecretAccessKey: awsSecretAccessKey,
-			SourceConfigAwsRegion:          awsRegion,
-			SourceConfigPollingPeriod:      "10ms",
-			SourceConfigAwsUrl:             "", // empty, so real AWS DynamoDB will be used instead.
+			SourceConfigAwsAccessKeyId:         awsAccessKeyID,
+			SourceConfigAwsSecretAccessKey:     awsSecretAccessKey,
+			SourceConfigAwsRegion:              awsRegion,
+			SourceConfigDiscoveryPollingPeriod: "5s",
+			SourceConfigRecordsPollingPeriod:   "1s",
+			SourceConfigAwsUrl:                 "", // empty, so real AWS DynamoDB will be used instead.
 		}
 	}
 

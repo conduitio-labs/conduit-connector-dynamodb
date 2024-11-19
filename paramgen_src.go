@@ -8,13 +8,14 @@ import (
 )
 
 const (
-	SourceConfigAwsAccessKeyId     = "aws.accessKeyId"
-	SourceConfigAwsRegion          = "aws.region"
-	SourceConfigAwsSecretAccessKey = "aws.secretAccessKey"
-	SourceConfigAwsUrl             = "aws.url"
-	SourceConfigPollingPeriod      = "pollingPeriod"
-	SourceConfigSkipSnapshot       = "skipSnapshot"
-	SourceConfigTable              = "table"
+	SourceConfigAwsAccessKeyId         = "aws.accessKeyId"
+	SourceConfigAwsRegion              = "aws.region"
+	SourceConfigAwsSecretAccessKey     = "aws.secretAccessKey"
+	SourceConfigAwsUrl                 = "aws.url"
+	SourceConfigDiscoveryPollingPeriod = "discoveryPollingPeriod"
+	SourceConfigRecordsPollingPeriod   = "recordsPollingPeriod"
+	SourceConfigSkipSnapshot           = "skipSnapshot"
+	SourceConfigTable                  = "table"
 )
 
 func (SourceConfig) Parameters() map[string]config.Parameter {
@@ -49,9 +50,15 @@ func (SourceConfig) Parameters() map[string]config.Parameter {
 			Type:        config.ParameterTypeString,
 			Validations: []config.Validation{},
 		},
-		SourceConfigPollingPeriod: {
+		SourceConfigDiscoveryPollingPeriod: {
+			Default:     "10s",
+			Description: "discovery polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.",
+			Type:        config.ParameterTypeDuration,
+			Validations: []config.Validation{},
+		},
+		SourceConfigRecordsPollingPeriod: {
 			Default:     "1s",
-			Description: "polling period for the CDC mode, formatted as a time.Duration string.",
+			Description: "records polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.",
 			Type:        config.ParameterTypeDuration,
 			Validations: []config.Validation{},
 		},
