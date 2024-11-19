@@ -38,6 +38,7 @@ type CDCIterator struct {
 	streamsClient *dynamodbstreams.Client
 	cache         []recordWithTimestamp
 	cacheLock     sync.Mutex
+	positionLock  sync.Mutex
 	streamArn     string
 	tomb          *tomb.Tomb
 	shards        map[string]*shardProcessor
@@ -45,6 +46,7 @@ type CDCIterator struct {
 	pollingPeriod time.Duration
 }
 
+// todo: find a better name for this struct.
 type recordWithTimestamp struct {
 	Record  stypes.Record
 	Time    time.Time
@@ -160,7 +162,9 @@ func (c *CDCIterator) updateShards(ctx context.Context) error {
 		shardID := *shard.ShardId
 		if _, exists := c.shards[shardID]; !exists {
 			// start processing this shard
+			c.positionLock.Lock()
 			seqNum, ok := c.lastPosition.SequenceNumberMap[shardID]
+			c.positionLock.Unlock()
 			if !ok {
 				seqNum = "" // to use trim horizon, which will start reading from the beginning of the shard.
 			}
@@ -218,9 +222,9 @@ func (c *CDCIterator) startShardProcessor(ctx context.Context, shard stypes.Shar
 func (c *CDCIterator) processShard(ctx context.Context, s *shardProcessor) error {
 	defer func() {
 		// clenaup the shard from the SequenceNumberMap when shard is closed.
-		c.cacheLock.Lock()
+		c.positionLock.Lock()
 		delete(c.lastPosition.SequenceNumberMap, s.shardID)
-		c.cacheLock.Unlock()
+		c.positionLock.Unlock()
 	}()
 	for {
 		select {
@@ -239,8 +243,12 @@ func (c *CDCIterator) processShard(ctx context.Context, s *shardProcessor) error
 			// process records
 			changed := false
 			for _, record := range out.Records {
-				if c.lastPosition.AfterSnapshot {
-					if record.Dynamodb.ApproximateCreationDateTime != nil && !record.Dynamodb.ApproximateCreationDateTime.After(c.lastPosition.Time) {
+				c.positionLock.Lock()
+				afterSnapshot := c.lastPosition.AfterSnapshot
+				lastTime := c.lastPosition.Time
+				c.positionLock.Unlock()
+				if afterSnapshot {
+					if record.Dynamodb.ApproximateCreationDateTime != nil && !record.Dynamodb.ApproximateCreationDateTime.After(lastTime) {
 						continue
 					}
 				}
@@ -332,9 +340,10 @@ func (c *CDCIterator) getOpenCDCRec(recWithTS recordWithTimestamp) (opencdc.Reco
 		structuredKey[c.sortKey] = image[c.sortKey]
 	}
 
-	// lock position
+	c.positionLock.Lock()
 	c.lastPosition.SequenceNumberMap[recWithTS.ShardID] = *rec.Dynamodb.SequenceNumber
 	cdcPos, err := c.lastPosition.ToRecordPosition()
+	c.positionLock.Unlock()
 	if err != nil {
 		return opencdc.Record{}, fmt.Errorf("failed to build record's CDC position: %w", err)
 	}

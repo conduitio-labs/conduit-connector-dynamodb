@@ -37,7 +37,7 @@ type Position struct {
 	SortKey      string `json:"sort_key"`
 
 	// the record's sequence number in the stream, for the CDC iterator.
-	SequenceNumberMap map[string]string `json:"sequence_number"`
+	SequenceNumberMap map[string]string `json:"sequence_number_map"`
 
 	// Flag to tell the CDC iterator whether to check the record time or not.
 	AfterSnapshot bool `json:"after_snapshot"`
