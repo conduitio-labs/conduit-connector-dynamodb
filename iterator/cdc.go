@@ -214,6 +214,12 @@ func (c *CDCIterator) startShardProcessor(ctx context.Context, shard stypes.Shar
 }
 
 func (c *CDCIterator) processShard(ctx context.Context, s *shardProcessor) error {
+	defer func() {
+		// clenaup the shard from the SequenceNumberMap when shard is closed.
+		c.cacheLock.Lock()
+		delete(c.lastPosition.SequenceNumberMap, s.shardID)
+		c.cacheLock.Unlock()
+	}()
 	for {
 		select {
 		case <-c.tomb.Dying():
