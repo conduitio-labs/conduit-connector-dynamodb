@@ -157,6 +157,7 @@ func TestSource_EmptyTable(t *testing.T) {
 
 	_, err = source.Read(ctx)
 	is.True(errors.Is(err, sdk.ErrBackoffRetry))
+	time.Sleep(1 * time.Second)
 
 	// test CDC after an empty snapshot.
 	err = insertRecord(ctx, client, testTable, 0, 1)
@@ -218,6 +219,7 @@ func TestSource_CDC(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(rec.Payload.After, opencdc.StructuredData{PartitionKey: "pkey1", SortKey: "1"})
 
+	time.Sleep(1 * time.Second)
 	// add a row, will be captured by CDC
 	err = insertRecord(ctx, client, testTable, 2, 3)
 	is.NoErr(err)
@@ -251,8 +253,10 @@ func TestSource_CDC(t *testing.T) {
 
 	// cdc
 	i := 0
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
 	for {
-		rec2, err := source.Read(ctx)
+		rec2, err := source.Read(timeoutCtx)
 		if err == nil {
 			switch i {
 			case 0:

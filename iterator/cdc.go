@@ -71,6 +71,7 @@ func NewCDCIterator(ctx context.Context, tableName string, pKey string, sKey str
 	c.cacheCond = sync.NewCond(&c.cacheLock)
 
 	// start listening to changes
+	c.tomb, ctx = tomb.WithContext(ctx)
 	c.tomb.Go(func() error {
 		return c.startCDC(ctx)
 	})
@@ -81,13 +82,13 @@ func NewCDCIterator(ctx context.Context, tableName string, pKey string, sKey str
 func (c *CDCIterator) HasNext(_ context.Context) bool {
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
-	return len(c.cache) > 0 || !c.tomb.Alive()
+	return len(c.cache) > 0 || !c.tomb.Alive() // if tomb is dead we return true so caller will fetch error with Next
 }
 
 func (c *CDCIterator) Next(ctx context.Context) (opencdc.Record, error) {
 	if len(c.cache) == 0 {
 		select {
-		case <-c.tomb.Dying():
+		case <-c.tomb.Dead():
 			return opencdc.Record{}, fmt.Errorf("tomb closed: %w", c.tomb.Err())
 		case <-ctx.Done():
 			return opencdc.Record{}, ctx.Err()
