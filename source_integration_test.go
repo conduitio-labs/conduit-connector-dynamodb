@@ -288,6 +288,7 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 		SourceConfigAwsSecretAccessKey:     "test",
 		SourceConfigAwsRegion:              "us-east-1",
 		SourceConfigDiscoveryPollingPeriod: "5s",
+		SourceConfigRecordsPollingPeriod:   "1s",
 		SourceConfigAwsUrl:                 "http://localhost:4566", // docker url
 	}
 
@@ -300,6 +301,7 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 			SourceConfigAwsSecretAccessKey:     awsSecretAccessKey,
 			SourceConfigAwsRegion:              awsRegion,
 			SourceConfigDiscoveryPollingPeriod: "5s",
+			SourceConfigRecordsPollingPeriod:   "1s",
 			SourceConfigAwsUrl:                 "", // empty, so real AWS DynamoDB will be used instead.
 		}
 	}
