@@ -186,7 +186,9 @@ func (c *CDCIterator) updateShards(ctx context.Context) error {
 			}
 		}
 		if !foundShard {
-			return fmt.Errorf("sequence number %s not found in any shard", c.p.SequenceNumber)
+			sdk.Logger(ctx).Error().Msgf("Sequence number %s not found in any shard, starting from the beginning.", c.p.SequenceNumber)
+			c.p.SequenceNumber = ""
+			return c.updateShards(ctx) // Retry with TRIM_HORIZON
 		}
 	}
 
