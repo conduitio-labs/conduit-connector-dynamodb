@@ -11,7 +11,7 @@ require (
 	github.com/aws/smithy-go v1.22.1
 	github.com/conduitio/conduit-commons v0.5.0
 	github.com/conduitio/conduit-connector-sdk v0.12.0
-	github.com/golangci/golangci-lint v1.63.3
+	github.com/golangci/golangci-lint v1.63.4
 	github.com/google/uuid v1.6.0
 	github.com/matryer/is v1.4.1
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
