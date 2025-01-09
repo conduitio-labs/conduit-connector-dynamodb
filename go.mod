@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.32.7
 	github.com/aws/aws-sdk-go-v2/config v1.28.7
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.49
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.39.0
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.39.1
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.24.11
 	github.com/aws/smithy-go v1.22.1
 	github.com/conduitio/conduit-commons v0.5.0
