@@ -79,7 +79,7 @@ func NewCombinedIterator(
 			IteratorType:      position.TypeCDC,
 			Time:              now,
 			AfterSnapshot:     true,
-			SequenceNumberMap: map[string]string{},
+			SequenceNumberMap: make(map[string]string),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("could not create the CDC iterator: %w", err)

@@ -74,6 +74,11 @@ func NewCDCIterator(ctx context.Context, tableName string, pKey string, sKey str
 		recordsPollingPeriod:   recordsPollingPeriod,
 	}
 
+	// initialize SequenceNumberMap if it is nil
+	if c.lastPosition.SequenceNumberMap == nil {
+		c.lastPosition.SequenceNumberMap = make(map[string]string)
+	}
+
 	// start listening to changes
 	c.tomb, ctx = tomb.WithContext(ctx)
 	c.tomb.Go(func() error {
