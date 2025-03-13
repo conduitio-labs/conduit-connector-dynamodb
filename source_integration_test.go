@@ -77,9 +77,9 @@ func (r Records) Swap(i, j int) {
 func TestSource_SuccessfulSnapshot(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
-	client, _ := prepareIntegrationTest(ctx, t)
+	client, cfg := prepareIntegrationTest(ctx, t)
 
-	testTable := SourceConfigTable
+	testTable := cfg[SourceConfigTable]
 	source := &Source{}
 	source.Config()
 
@@ -116,8 +116,8 @@ func TestSource_SuccessfulSnapshot(t *testing.T) {
 func TestSource_SnapshotRestart(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
-	client, _ := prepareIntegrationTest(ctx, t)
-	testTable := SourceConfigTable
+	client, cfg := prepareIntegrationTest(ctx, t)
+	testTable := cfg[SourceConfigTable]
 	source := &Source{}
 	source.Config()
 
