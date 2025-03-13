@@ -80,13 +80,11 @@ func TestSource_SuccessfulSnapshot(t *testing.T) {
 	client, cfg := prepareIntegrationTest(ctx, t)
 
 	testTable := cfg[SourceConfigTable]
-
-	source := NewSource()
+	source := &Source{}
 	defer func() {
 		err := source.Teardown(ctx)
 		is.NoErr(err)
 	}()
-
 	err := sdk.Util.ParseConfig(ctx, cfg, source.Config(), Connector.NewSpecification().SourceParams)
 	is.NoErr(err)
 
@@ -117,7 +115,6 @@ func TestSource_SuccessfulSnapshot(t *testing.T) {
 	for i, rec := range got {
 		is.Equal(rec.Payload.After, opencdc.StructuredData{PartitionKey: fmt.Sprintf("pkey%d", i), SortKey: fmt.Sprintf("%d", i)})
 	}
-	_ = source.Teardown(ctx)
 }
 
 func TestSource_SnapshotRestart(t *testing.T) {
@@ -125,7 +122,7 @@ func TestSource_SnapshotRestart(t *testing.T) {
 	ctx := context.Background()
 	client, cfg := prepareIntegrationTest(ctx, t)
 	testTable := cfg[SourceConfigTable]
-	source := NewSource()
+	source := &Source{}
 	defer func() {
 		err := source.Teardown(ctx)
 		is.NoErr(err)
@@ -166,7 +163,7 @@ func TestSource_EmptyTable(t *testing.T) {
 	client, cfg := prepareIntegrationTest(ctx, t)
 	testTable := cfg[SourceConfigTable]
 
-	source := NewSource()
+	source := &Source{}
 	defer func() {
 		err := source.Teardown(ctx)
 		is.NoErr(err)
@@ -198,8 +195,6 @@ func TestSource_EmptyTable(t *testing.T) {
 		is.Equal(rec.Operation, opencdc.OperationCreate)
 		break
 	}
-
-	_ = source.Teardown(ctx)
 }
 
 func TestSource_NonExistentTable(t *testing.T) {
@@ -209,7 +204,7 @@ func TestSource_NonExistentTable(t *testing.T) {
 	// set the table name to a unique uuid, so it doesn't exist.
 	cfg[SourceConfigTable] = uuid.NewString()
 
-	source := NewSource()
+	source := &Source{}
 	defer func() {
 		err := source.Teardown(ctx)
 		is.NoErr(err)
@@ -229,7 +224,7 @@ func TestSource_CDC(t *testing.T) {
 	client, cfg := prepareIntegrationTest(ctx, t)
 	//
 	testTable := cfg[SourceConfigTable]
-	source := NewSource()
+	source := &Source{}
 	defer func() {
 		err := source.Teardown(ctx)
 		is.NoErr(err)
@@ -306,8 +301,6 @@ func TestSource_CDC(t *testing.T) {
 			break
 		}
 	}
-
-	_ = source.Teardown(ctx)
 }
 
 func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client, map[string]string) {
