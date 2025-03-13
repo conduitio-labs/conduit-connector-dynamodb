@@ -80,11 +80,18 @@ func TestSource_SuccessfulSnapshot(t *testing.T) {
 	client, cfg := prepareIntegrationTest(ctx, t)
 
 	testTable := cfg[SourceConfigTable]
-	source := &Source{}
-	source.Config()
+
+	source := NewSource()
+	defer func() {
+		err := source.Teardown(ctx)
+		is.NoErr(err)
+	}()
+
+	err := sdk.Util.ParseConfig(ctx, cfg, source.Config(), Connector.NewSpecification().SourceParams)
+	is.NoErr(err)
 
 	// insert 5 rows
-	err := insertRecord(ctx, client, testTable, 0, 5)
+	err = insertRecord(ctx, client, testTable, 0, 5)
 	is.NoErr(err)
 
 	err = source.Open(ctx, nil)
@@ -118,11 +125,17 @@ func TestSource_SnapshotRestart(t *testing.T) {
 	ctx := context.Background()
 	client, cfg := prepareIntegrationTest(ctx, t)
 	testTable := cfg[SourceConfigTable]
-	source := &Source{}
-	source.Config()
+	source := NewSource()
+	defer func() {
+		err := source.Teardown(ctx)
+		is.NoErr(err)
+	}()
+
+	err := sdk.Util.ParseConfig(ctx, cfg, source.Config(), Connector.NewSpecification().SourceParams)
+	is.NoErr(err)
 
 	// add rows
-	err := insertRecord(ctx, client, testTable, 0, 6)
+	err = insertRecord(ctx, client, testTable, 0, 6)
 	is.NoErr(err)
 
 	// set a non nil position
@@ -153,9 +166,16 @@ func TestSource_EmptyTable(t *testing.T) {
 	client, cfg := prepareIntegrationTest(ctx, t)
 	testTable := cfg[SourceConfigTable]
 
-	source := &Source{}
-	source.Config()
-	err := source.Open(ctx, nil)
+	source := NewSource()
+	defer func() {
+		err := source.Teardown(ctx)
+		is.NoErr(err)
+	}()
+
+	err := sdk.Util.ParseConfig(ctx, cfg, source.Config(), Connector.NewSpecification().SourceParams)
+	is.NoErr(err)
+
+	err = source.Open(ctx, nil)
 	is.NoErr(err)
 
 	_, err = source.Read(ctx)
@@ -186,16 +206,20 @@ func TestSource_NonExistentTable(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
 	_, cfg := prepareIntegrationTest(ctx, t)
-
-	source := &Source{}
-
 	// set the table name to a unique uuid, so it doesn't exist.
 	cfg[SourceConfigTable] = uuid.NewString()
 
-	source.Config()
+	source := NewSource()
+	defer func() {
+		err := source.Teardown(ctx)
+		is.NoErr(err)
+	}()
+
+	err := sdk.Util.ParseConfig(ctx, cfg, source.Config(), Connector.NewSpecification().SourceParams)
+	is.NoErr(err)
 
 	// table existence check at "Open"
-	err := source.Open(ctx, nil)
+	err = source.Open(ctx, nil)
 	is.True(err != nil)
 }
 
@@ -205,11 +229,17 @@ func TestSource_CDC(t *testing.T) {
 	client, cfg := prepareIntegrationTest(ctx, t)
 	//
 	testTable := cfg[SourceConfigTable]
-	source := &Source{}
-	source.Config()
+	source := NewSource()
+	defer func() {
+		err := source.Teardown(ctx)
+		is.NoErr(err)
+	}()
+
+	err := sdk.Util.ParseConfig(ctx, cfg, source.Config(), Connector.NewSpecification().SourceParams)
+	is.NoErr(err)
 
 	// add rows
-	err := insertRecord(ctx, client, testTable, 1, 2)
+	err = insertRecord(ctx, client, testTable, 1, 2)
 	is.NoErr(err)
 
 	err = source.Open(ctx, nil)
@@ -320,6 +350,8 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 	if err != nil {
 		t.Fatalf("could not create dynamoDB table: %v", err)
 	}
+
+	fmt.Println("prepared table name:", table)
 
 	t.Cleanup(func() {
 		err := deleteTable(ctx, client, table)
