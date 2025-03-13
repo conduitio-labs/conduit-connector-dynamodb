@@ -32,7 +32,6 @@ import (
 	smithyendpoints "github.com/aws/smithy-go/endpoints"
 	"github.com/conduitio-labs/conduit-connector-dynamodb/iterator"
 	"github.com/conduitio-labs/conduit-connector-dynamodb/position"
-	cconfig "github.com/conduitio/conduit-commons/config"
 	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 )
@@ -48,6 +47,7 @@ type Source struct {
 }
 
 type SourceConfig struct {
+	sdk.DefaultSourceMiddleware
 	// Table is the DynamoDB table name to pull data from.
 	Table string `json:"table" validate:"required"`
 	// AWS region.
@@ -73,20 +73,11 @@ type Iterator interface {
 }
 
 func NewSource() sdk.Source {
-	return sdk.SourceWithMiddleware(&Source{}, sdk.DefaultSourceMiddleware()...)
+	return sdk.SourceWithMiddleware(&Source{})
 }
 
-func (s *Source) Parameters() cconfig.Parameters {
-	return s.config.Parameters()
-}
-
-func (s *Source) Configure(ctx context.Context, cfg cconfig.Config) error {
-	sdk.Logger(ctx).Info().Msg("Configuring DynamoDB Source...")
-	err := sdk.Util.ParseConfig(ctx, cfg, &s.config, NewSource().Parameters())
-	if err != nil {
-		return fmt.Errorf("invalid config: %w", err)
-	}
-	return nil
+func (s *Source) Config() sdk.SourceConfig {
+	return &s.config
 }
 
 func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {

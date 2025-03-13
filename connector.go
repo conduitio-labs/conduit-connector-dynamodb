@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:generate conn-sdk-cli specgen
+
 package dynamodb
 
 import sdk "github.com/conduitio/conduit-connector-sdk"
