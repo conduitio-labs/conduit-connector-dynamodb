@@ -344,8 +344,6 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 		t.Fatalf("could not create dynamoDB table: %v", err)
 	}
 
-	fmt.Println("prepared table name:", table)
-
 	t.Cleanup(func() {
 		err := deleteTable(ctx, client, table)
 		if err != nil {
