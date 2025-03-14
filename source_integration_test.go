@@ -36,8 +36,16 @@ import (
 )
 
 var (
-	PartitionKey = "pkey"
-	SortKey      = "skey"
+	PartitionKey                       = "pkey"
+	SortKey                            = "skey"
+	SourceConfigTable                  = "table"
+	SourceConfigAwsAccessKeyID         = "aws.accessKeyId"
+	SourceConfigAwsRegion              = "aws.region"
+	SourceConfigAwsSecretAccessKey     = "aws.secretAccessKey"
+	SourceConfigAwsURL                 = "aws.url"
+	SourceConfigDiscoveryPollingPeriod = "discoveryPollingPeriod"
+	SourceConfigRecordsPollingPeriod   = "recordsPollingPeriod"
+	SourceConfigSkipSnapshot           = "skipSnapshot"
 )
 
 // Records is a slice of opencdc.Record, that can be sorted by the sort key under record.Key["skey"].
@@ -73,10 +81,12 @@ func TestSource_SuccessfulSnapshot(t *testing.T) {
 
 	testTable := cfg[SourceConfigTable]
 	source := &Source{}
-	err := source.Configure(ctx, cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	defer func() {
+		err := source.Teardown(ctx)
+		is.NoErr(err)
+	}()
+	err := sdk.Util.ParseConfig(ctx, cfg, source.Config(), Connector.NewSpecification().SourceParams)
+	is.NoErr(err)
 
 	// insert 5 rows
 	err = insertRecord(ctx, client, testTable, 0, 5)
@@ -105,7 +115,6 @@ func TestSource_SuccessfulSnapshot(t *testing.T) {
 	for i, rec := range got {
 		is.Equal(rec.Payload.After, opencdc.StructuredData{PartitionKey: fmt.Sprintf("pkey%d", i), SortKey: fmt.Sprintf("%d", i)})
 	}
-	_ = source.Teardown(ctx)
 }
 
 func TestSource_SnapshotRestart(t *testing.T) {
@@ -114,7 +123,12 @@ func TestSource_SnapshotRestart(t *testing.T) {
 	client, cfg := prepareIntegrationTest(ctx, t)
 	testTable := cfg[SourceConfigTable]
 	source := &Source{}
-	err := source.Configure(ctx, cfg)
+	defer func() {
+		err := source.Teardown(ctx)
+		is.NoErr(err)
+	}()
+
+	err := sdk.Util.ParseConfig(ctx, cfg, source.Config(), Connector.NewSpecification().SourceParams)
 	is.NoErr(err)
 
 	// add rows
@@ -150,8 +164,14 @@ func TestSource_EmptyTable(t *testing.T) {
 	testTable := cfg[SourceConfigTable]
 
 	source := &Source{}
-	err := source.Configure(ctx, cfg)
+	defer func() {
+		err := source.Teardown(ctx)
+		is.NoErr(err)
+	}()
+
+	err := sdk.Util.ParseConfig(ctx, cfg, source.Config(), Connector.NewSpecification().SourceParams)
 	is.NoErr(err)
+
 	err = source.Open(ctx, nil)
 	is.NoErr(err)
 
@@ -175,21 +195,22 @@ func TestSource_EmptyTable(t *testing.T) {
 		is.Equal(rec.Operation, opencdc.OperationCreate)
 		break
 	}
-
-	_ = source.Teardown(ctx)
 }
 
 func TestSource_NonExistentTable(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
 	_, cfg := prepareIntegrationTest(ctx, t)
-
-	source := &Source{}
-
 	// set the table name to a unique uuid, so it doesn't exist.
 	cfg[SourceConfigTable] = uuid.NewString()
 
-	err := source.Configure(ctx, cfg)
+	source := &Source{}
+	defer func() {
+		err := source.Teardown(ctx)
+		is.NoErr(err)
+	}()
+
+	err := sdk.Util.ParseConfig(ctx, cfg, source.Config(), Connector.NewSpecification().SourceParams)
 	is.NoErr(err)
 
 	// table existence check at "Open"
@@ -204,7 +225,12 @@ func TestSource_CDC(t *testing.T) {
 	//
 	testTable := cfg[SourceConfigTable]
 	source := &Source{}
-	err := source.Configure(ctx, cfg)
+	defer func() {
+		err := source.Teardown(ctx)
+		is.NoErr(err)
+	}()
+
+	err := sdk.Util.ParseConfig(ctx, cfg, source.Config(), Connector.NewSpecification().SourceParams)
 	is.NoErr(err)
 
 	// add rows
@@ -275,8 +301,6 @@ func TestSource_CDC(t *testing.T) {
 			break
 		}
 	}
-
-	_ = source.Teardown(ctx)
 }
 
 func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client, map[string]string) {
@@ -284,12 +308,12 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 
 	// default params, connects to DynamoDB docker instance.
 	cfg := map[string]string{
-		SourceConfigAwsAccessKeyId:         "test",
+		SourceConfigAwsAccessKeyID:         "test",
 		SourceConfigAwsSecretAccessKey:     "test",
 		SourceConfigAwsRegion:              "us-east-1",
 		SourceConfigDiscoveryPollingPeriod: "5s",
 		SourceConfigRecordsPollingPeriod:   "1s",
-		SourceConfigAwsUrl:                 "http://localhost:4566", // docker url
+		SourceConfigAwsURL:                 "http://localhost:4566", // docker url
 	}
 
 	awsAccessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
@@ -297,12 +321,12 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 	awsRegion := os.Getenv("AWS_REGION")
 	if awsRegion != "" && awsAccessKeyID != "" && awsSecretAccessKey != "" {
 		cfg = map[string]string{
-			SourceConfigAwsAccessKeyId:         awsAccessKeyID,
+			SourceConfigAwsAccessKeyID:         awsAccessKeyID,
 			SourceConfigAwsSecretAccessKey:     awsSecretAccessKey,
 			SourceConfigAwsRegion:              awsRegion,
 			SourceConfigDiscoveryPollingPeriod: "5s",
 			SourceConfigRecordsPollingPeriod:   "1s",
-			SourceConfigAwsUrl:                 "", // empty, so real AWS DynamoDB will be used instead.
+			SourceConfigAwsURL:                 "", // empty, so real AWS DynamoDB will be used instead.
 		}
 	}
 
@@ -333,17 +357,17 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 func newDynamoClients(ctx context.Context, cfg map[string]string) (*dynamodb.Client, error) {
 	clientCfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(cfg[SourceConfigAwsRegion]),
-		config.WithCredentialsProvider(aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(cfg[SourceConfigAwsAccessKeyId], cfg[SourceConfigAwsSecretAccessKey], ""))),
+		config.WithCredentialsProvider(aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(cfg[SourceConfigAwsAccessKeyID], cfg[SourceConfigAwsSecretAccessKey], ""))),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error creating AWS session: %w", err)
 	}
 
 	var dynamoDBClient *dynamodb.Client
-	if cfg[SourceConfigAwsUrl] != "" {
+	if cfg[SourceConfigAwsURL] != "" {
 		dynamoDBClient = dynamodb.NewFromConfig(clientCfg, func(o *dynamodb.Options) {
 			o.EndpointResolverV2 = staticResolver{
-				BaseURL: cfg[SourceConfigAwsUrl],
+				BaseURL: cfg[SourceConfigAwsURL],
 			}
 		})
 	} else {
