@@ -50,13 +50,16 @@ specification:
         type: duration
         default: 1s
         validations: []
+      - name: skipSnapshot
+        description: skipSnapshot determines weather to skip the snapshot or not.
+        type: bool
+        default: "false"
+        validations: []
       - name: sdk.batch.delay
         description: Maximum delay before an incomplete batch is read from the source.
         type: duration
         default: "0"
-        validations:
-          - type: greater-than
-            value: "-1"
+        validations: []
       - name: sdk.batch.size
         description: Maximum size of batch before it gets read from the source.
         type: int
@@ -112,8 +115,3 @@ specification:
         validations:
           - type: inclusion
             value: avro
-      - name: skipSnapshot
-        description: skipSnapshot determines weather to skip the snapshot or not.
-        type: bool
-        default: "false"
-        validations: []
