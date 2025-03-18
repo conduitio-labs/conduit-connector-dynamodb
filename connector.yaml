@@ -1,0 +1,117 @@
+version: "1.0"
+specification:
+  name: dynamodb
+  summary: A DynamoDB source plugin for Conduit
+  description: A DynamoDB source plugin for Conduit, it scans the table at the beginning taking a snapshot, then starts listening to CDC events using DynamoDB streams.
+  version: (devel)
+  author: Meroxa, Inc.
+  source:
+    parameters:
+      - name: aws.accessKeyId
+        description: AWS access key id.
+        type: string
+        default: ""
+        validations:
+          - type: required
+            value: ""
+      - name: aws.region
+        description: AWS region.
+        type: string
+        default: ""
+        validations:
+          - type: required
+            value: ""
+      - name: aws.secretAccessKey
+        description: AWS secret access key.
+        type: string
+        default: ""
+        validations:
+          - type: required
+            value: ""
+      - name: table
+        description: Table is the DynamoDB table name to pull data from.
+        type: string
+        default: ""
+        validations:
+          - type: required
+            value: ""
+      - name: aws.url
+        description: AWSURL The URL for AWS (useful when testing the connector with localstack).
+        type: string
+        default: ""
+        validations: []
+      - name: discoveryPollingPeriod
+        description: discovery polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.
+        type: duration
+        default: 10s
+        validations: []
+      - name: recordsPollingPeriod
+        description: records polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.
+        type: duration
+        default: 1s
+        validations: []
+      - name: skipSnapshot
+        description: skipSnapshot determines weather to skip the snapshot or not.
+        type: bool
+        default: "false"
+        validations: []
+      - name: sdk.batch.delay
+        description: Maximum delay before an incomplete batch is read from the source.
+        type: duration
+        default: "0"
+        validations: []
+      - name: sdk.batch.size
+        description: Maximum size of batch before it gets read from the source.
+        type: int
+        default: "0"
+        validations:
+          - type: greater-than
+            value: "-1"
+      - name: sdk.schema.context.enabled
+        description: |-
+          Specifies whether to use a schema context name. If set to false, no schema context name will
+          be used, and schemas will be saved with the subject name specified in the connector
+          (not safe because of name conflicts).
+        type: bool
+        default: "true"
+        validations: []
+      - name: sdk.schema.context.name
+        description: |-
+          Schema context name to be used. Used as a prefix for all schema subject names.
+          If empty, defaults to the connector ID.
+        type: string
+        default: ""
+        validations: []
+      - name: sdk.schema.extract.key.enabled
+        description: Whether to extract and encode the record key with a schema.
+        type: bool
+        default: "true"
+        validations: []
+      - name: sdk.schema.extract.key.subject
+        description: |-
+          The subject of the key schema. If the record metadata contains the field
+          "opencdc.collection" it is prepended to the subject name and separated
+          with a dot.
+        type: string
+        default: key
+        validations: []
+      - name: sdk.schema.extract.payload.enabled
+        description: Whether to extract and encode the record payload with a schema.
+        type: bool
+        default: "true"
+        validations: []
+      - name: sdk.schema.extract.payload.subject
+        description: |-
+          The subject of the payload schema. If the record metadata contains the
+          field "opencdc.collection" it is prepended to the subject name and
+          separated with a dot.
+        type: string
+        default: payload
+        validations: []
+      - name: sdk.schema.extract.type
+        description: The type of the payload schema.
+        type: string
+        default: avro
+        validations:
+          - type: inclusion
+            value: avro
