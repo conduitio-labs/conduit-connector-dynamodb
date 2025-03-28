@@ -46,16 +46,8 @@ type Source struct {
 
 type SourceConfig struct {
 	sdk.DefaultSourceMiddleware
-	// Table is the DynamoDB table name to pull data from.
-	Table string `json:"table" validate:"required"`
-	// AWS region.
-	AWSRegion string `json:"aws.region" validate:"required"`
-	// AWS access key id.
-	AWSAccessKeyID string `json:"aws.accessKeyId" validate:"required"`
-	// AWS secret access key.
-	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
-	// AWSURL The URL for AWS (useful when testing the connector with localstack).
-	AWSURL string `json:"aws.url"`
+	Config
+
 	// discovery polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.
 	DiscoveryPollingPeriod time.Duration `json:"discoveryPollingPeriod" default:"10s"`
 	// records polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.
