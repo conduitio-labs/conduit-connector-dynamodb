@@ -2,7 +2,39 @@ version: "1.0"
 specification:
   name: dynamodb
   summary: A DynamoDB source plugin for Conduit
-  description: "## How to build?\n\nRun `make build` to build the connector.\n\n## Testing\n\nRun `make test-integration` to run all the integration tests. Tests require Docker to be installed and running.\nThe command will handle starting and stopping docker containers for you.\n\nIf you want to run the integration tests against your AWS DynamoDB instead of docker, You must set the environment\nvariables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) before running `make test`, \nor before running the tests manually.\n\n## Source\nA source connector that pulls data from a DynamoDB table to downstream resources via Conduit.\n\nThe connector starts with a snapshot of the data currently existent in the table, sends these records to the \ndestination, then starts the CDC (Change Data Capture) mode which will listen to events happening on the table\nin real-time, and sends these events' records to the destination (these events include: `updates`, `deletes`, and `inserts`).\nYou can opt out from taking the snapshot by setting the parameter `skipSnapshot` to `true`, meaning that only the CDC\nevents will be captured.\n\nThe source connector uses [DynamoDB Streams](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html) to get CDC events,\nso you need to enable the stream before running the connector. Check out the documentation for [how to enable a DynamoDB Stream](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html#Streams.Enabling).\n\n## Destination\nA destination connector that takes a conduit record and stores it into a DynamoDB table.\n\nThe Destination is designed to handle different kinds of operations, based on the `Operation` field in the record\nreceived, the destination will either `insert`, `update` or `delete` the record in the target table. Snapshot records\nare always inserted.\n"
+  description: |
+    ## How to build?
+
+    Run `make build` to build the connector.
+
+    ## Testing
+
+    Run `make test-integration` to run all the integration tests. Tests require Docker to be installed and running.
+    The command will handle starting and stopping docker containers for you.
+
+    If you want to run the integration tests against your AWS DynamoDB instead of docker, You must set the environment
+    variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) before running `make test`, 
+    or before running the tests manually.
+
+    ## Source
+    A source connector that pulls data from a DynamoDB table to downstream resources via Conduit.
+
+    The connector starts with a snapshot of the data currently existent in the table, sends these records to the 
+    destination, then starts the CDC (Change Data Capture) mode which will listen to events happening on the table
+    in real-time, and sends these events' records to the destination (these events include: `updates`, `deletes`, and `inserts`).
+    You can opt out from taking the snapshot by setting the parameter `skipSnapshot` to `true`, meaning that only the CDC
+    events will be captured.
+
+    The source connector uses [DynamoDB Streams](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html) to get CDC events,
+    so you need to enable the stream before running the connector. Check out the documentation for [how to enable a DynamoDB Stream](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html#Streams.Enabling).
+
+    ## Destination
+    A destination connector that takes a conduit record and stores it into a DynamoDB table.
+
+    The Destination is designed to handle different kinds of operations, based on the `Operation` field in the record
+    received, the destination will either `insert`, `update` or `delete` the record in the target table. Snapshot records
+    are always inserted.
+
   version: (devel)
   author: Meroxa, Inc.
   source:
