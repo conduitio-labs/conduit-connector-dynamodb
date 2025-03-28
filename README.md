@@ -2,7 +2,6 @@
 A DynamoDB connector for [Conduit](https://conduit.io), It provides both, a source and a destination DynamoDB connector.
 
 <!-- readmegen:description -->
-
 ## How to build?
 
 Run `make build` to build the connector.
