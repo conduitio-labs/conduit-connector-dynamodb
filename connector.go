@@ -31,4 +31,5 @@ var version = "(devel)"
 var Connector = sdk.Connector{
 	NewSpecification: sdk.YAMLSpecification(specs, version),
 	NewSource:        NewSource,
+	NewDestination:   NewDestination,
 }
