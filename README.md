@@ -1,7 +1,6 @@
 # Conduit Connector for <!-- readmegen:name -->Dynamodb<!-- /readmegen:name -->
 A DynamoDB connector for [Conduit](https://conduit.io), It provides both, a source and a destination DynamoDB connector.
 
-<!-- readmegen:description -->
 ## How to build?
 
 Run `make build` to build the connector.
@@ -15,6 +14,7 @@ If you want to run the integration tests against your AWS DynamoDB instead of do
 variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) before running `make test`, 
 or before running the tests manually.
 
+<!-- readmegen:description -->
 ## Source
 A source connector that pulls data from a DynamoDB table to downstream resources via Conduit.
 

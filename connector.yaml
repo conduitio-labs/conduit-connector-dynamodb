@@ -3,19 +3,6 @@ specification:
   name: dynamodb
   summary: A DynamoDB source plugin for Conduit
   description: |
-    ## How to build?
-
-    Run `make build` to build the connector.
-
-    ## Testing
-
-    Run `make test-integration` to run all the integration tests. Tests require Docker to be installed and running.
-    The command will handle starting and stopping docker containers for you.
-
-    If you want to run the integration tests against your AWS DynamoDB instead of docker, You must set the environment
-    variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) before running `make test`, 
-    or before running the tests manually.
-
     ## Source
     A source connector that pulls data from a DynamoDB table to downstream resources via Conduit.
 
