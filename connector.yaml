@@ -21,7 +21,6 @@ specification:
     The Destination is designed to handle different kinds of operations, based on the `Operation` field in the record
     received, the destination will either `insert`, `update` or `delete` the record in the target table. Snapshot records
     are always inserted.
-
   version: (devel)
   author: Meroxa, Inc.
   source:

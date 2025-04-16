@@ -18,7 +18,7 @@ or before running the tests manually.
 ## Source
 A source connector that pulls data from a DynamoDB table to downstream resources via Conduit.
 
-The connector starts with a snapshot of the data currently existent in the table, sends these records to the 
+The connector starts with a snapshot of the data currently existent in the table, sends these records to the
 destination, then starts the CDC (Change Data Capture) mode which will listen to events happening on the table
 in real-time, and sends these events' records to the destination (these events include: `updates`, `deletes`, and `inserts`).
 You can opt out from taking the snapshot by setting the parameter `skipSnapshot` to `true`, meaning that only the CDC
