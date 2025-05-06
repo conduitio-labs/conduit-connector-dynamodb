@@ -35,6 +35,11 @@ specification:
         validations:
           - type: required
             value: ""
+      - name: aws.sessionToken
+        description: AWS temporary session token.
+        type: string
+        default: ""
+        validations: []
       - name: aws.url
         description: AWSURL The URL for AWS (useful when testing the connector with localstack).
         type: string

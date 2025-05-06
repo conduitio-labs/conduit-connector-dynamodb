@@ -58,6 +58,10 @@ pipelines:
           # Type: string
           # Required: yes
           table: ""
+          # AWS temporary session token.
+          # Type: string
+          # Required: no
+          aws.sessionToken: ""
           # AWSURL The URL for AWS (useful when testing the connector with
           # localstack).
           # Type: string

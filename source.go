@@ -54,6 +54,8 @@ type SourceConfig struct {
 	AWSAccessKeyID string `json:"aws.accessKeyId" validate:"required"`
 	// AWS secret access key.
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
+	// AWS temporary session token.
+	AWSSessionToken string `json:"aws.sessionToken"`
 	// AWSURL The URL for AWS (useful when testing the connector with localstack).
 	AWSURL string `json:"aws.url"`
 	// discovery polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.
@@ -83,7 +85,7 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(s.config.AWSRegion),
-		config.WithCredentialsProvider(aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(s.config.AWSAccessKeyID, s.config.AWSSecretAccessKey, ""))),
+		config.WithCredentialsProvider(aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(s.config.AWSAccessKeyID, s.config.AWSSecretAccessKey, s.config.AWSSessionToken))),
 	)
 	if err != nil {
 		return fmt.Errorf("could not load AWS config: %w", err)
