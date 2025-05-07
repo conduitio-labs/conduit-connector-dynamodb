@@ -58,7 +58,10 @@ pipelines:
           # Type: string
           # Required: yes
           table: ""
-          # AWS temporary session token.
+          # AWS temporary session token. Note that to keep the connector running
+          # long-term, you should use an IAM user with no temporary session
+          # token. If the session token is used, then the connector will fail
+          # once it expires.
           # Type: string
           # Required: no
           aws.sessionToken: ""

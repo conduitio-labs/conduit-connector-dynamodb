@@ -54,15 +54,16 @@ type SourceConfig struct {
 	AWSAccessKeyID string `json:"aws.accessKeyId" validate:"required"`
 	// AWS secret access key.
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
-	// AWS temporary session token.
+	// AWS temporary session token. Note that to keep the connector running long-term, you should use an IAM user with no temporary session token.
+	// If the session token is used, then the connector will fail once it expires.
 	AWSSessionToken string `json:"aws.sessionToken"`
 	// AWSURL The URL for AWS (useful when testing the connector with localstack).
 	AWSURL string `json:"aws.url"`
-	// discovery polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.
+	// Discovery polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.
 	DiscoveryPollingPeriod time.Duration `json:"discoveryPollingPeriod" default:"10s"`
-	// records polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.
+	// Records polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.
 	RecordsPollingPeriod time.Duration `json:"recordsPollingPeriod" default:"1s"`
-	// skipSnapshot determines weather to skip the snapshot or not.
+	// SkipSnapshot determines weather to skip the snapshot or not.
 	SkipSnapshot bool `json:"skipSnapshot" default:"false"`
 }
 
