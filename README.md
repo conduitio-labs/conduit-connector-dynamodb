@@ -70,18 +70,18 @@ pipelines:
           # Type: string
           # Required: no
           aws.url: ""
-          # discovery polling period for the CDC mode of how often to check for
+          # Discovery polling period for the CDC mode of how often to check for
           # new shards in the DynamoDB Stream, formatted as a time.Duration
           # string.
           # Type: duration
           # Required: no
           discoveryPollingPeriod: "10s"
-          # records polling period for the CDC mode of how often to get new
+          # Records polling period for the CDC mode of how often to get new
           # records from a shard, formatted as a time.Duration string.
           # Type: duration
           # Required: no
           recordsPollingPeriod: "1s"
-          # skipSnapshot determines weather to skip the snapshot or not.
+          # SkipSnapshot determines weather to skip the snapshot or not.
           # Type: bool
           # Required: no
           skipSnapshot: "false"

@@ -48,17 +48,17 @@ specification:
         default: ""
         validations: []
       - name: discoveryPollingPeriod
-        description: discovery polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.
+        description: Discovery polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.
         type: duration
         default: 10s
         validations: []
       - name: recordsPollingPeriod
-        description: records polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.
+        description: Records polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.
         type: duration
         default: 1s
         validations: []
       - name: skipSnapshot
-        description: skipSnapshot determines weather to skip the snapshot or not.
+        description: SkipSnapshot determines weather to skip the snapshot or not.
         type: bool
         default: "false"
         validations: []
