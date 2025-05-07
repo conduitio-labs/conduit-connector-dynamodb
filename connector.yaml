@@ -3,7 +3,7 @@ specification:
   name: dynamodb
   summary: A DynamoDB source plugin for Conduit
   description: A DynamoDB source plugin for Conduit, it scans the table at the beginning taking a snapshot, then starts listening to CDC events using DynamoDB streams.
-  version: (devel)
+  version: v0.3.0
   author: Meroxa, Inc.
   source:
     parameters:
