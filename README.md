@@ -42,26 +42,36 @@ pipelines:
       - id: example
         plugin: "dynamodb"
         settings:
-          # AWS access key id.
-          # Type: string
-          # Required: yes
-          aws.accessKeyId: ""
           # AWS region.
           # Type: string
           # Required: yes
           aws.region: ""
-          # AWS secret access key.
-          # Type: string
-          # Required: yes
-          aws.secretAccessKey: ""
           # Table is the DynamoDB table name to pull data from.
           # Type: string
           # Required: yes
           table: ""
-          # AWS temporary session token. Note that to keep the connector running
-          # long-term, you should use an IAM user with no temporary session
-          # token. If the session token is used, then the connector will fail
-          # once it expires.
+          # AWS access key id. Optional - if not provided, the connector will
+          # use the default credential chain (environment variables, shared
+          # credentials file, or IAM role). For production environments, it's
+          # recommended to use the default credential chain with IAM roles
+          # rather than static credentials.
+          # Type: string
+          # Required: no
+          aws.accessKeyId: ""
+          # AWS secret access key. Optional - if not provided, the connector
+          # will use the default credential chain (environment variables, shared
+          # credentials file, or IAM role). For production environments, it's
+          # recommended to use the default credential chain with IAM roles
+          # rather than static credentials.
+          # Type: string
+          # Required: no
+          aws.secretAccessKey: ""
+          # AWS temporary session token. Optional - if not provided, the
+          # connector will use the default credential chain. Note that to keep
+          # the connector running long-term, you should use the default
+          # credential chain rather than temporary session tokens which will
+          # expire. For production environments, it's recommended to use IAM
+          # roles (IRSA, EC2 instance profile, or ECS task role).
           # Type: string
           # Required: no
           aws.sessionToken: ""
