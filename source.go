@@ -54,12 +54,7 @@ type SourceConfig struct {
 	RecordsPollingPeriod time.Duration `json:"recordsPollingPeriod" default:"1s"`
 	// SkipSnapshot determines weather to skip the snapshot or not.
 	SkipSnapshot bool `json:"skipSnapshot" default:"false"`
-
-	// AWS temporary session token. Note that to keep the connector running long-term, you should use an IAM user with no temporary session token.
-	// If the session token is used, then the connector will fail once it expires.
-	AWSSessionToken string `json:"aws.sessionToken"`
 }
-
 
 type Iterator interface {
 	HasNext(ctx context.Context) bool
