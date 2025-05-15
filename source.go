@@ -50,12 +50,18 @@ type SourceConfig struct {
 	Table string `json:"table" validate:"required"`
 	// AWS region.
 	AWSRegion string `json:"aws.region" validate:"required"`
-	// AWS access key id.
-	AWSAccessKeyID string `json:"aws.accessKeyId" validate:"required"`
-	// AWS secret access key.
-	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
-	// AWS temporary session token. Note that to keep the connector running long-term, you should use an IAM user with no temporary session token.
-	// If the session token is used, then the connector will fail once it expires.
+	// AWS access key id. Optional - if not provided, the connector will use the default credential chain
+	// (environment variables, shared credentials file, or IAM role). For production environments,
+	// it's recommended to use the default credential chain with IAM roles rather than static credentials.
+	AWSAccessKeyID string `json:"aws.accessKeyId"`
+	// AWS secret access key. Optional - if not provided, the connector will use the default credential chain
+	// (environment variables, shared credentials file, or IAM role). For production environments,
+	// it's recommended to use the default credential chain with IAM roles rather than static credentials.
+	AWSSecretAccessKey string `json:"aws.secretAccessKey"`
+	// AWS temporary session token. Optional - if not provided, the connector will use the default credential chain.
+	// Note that to keep the connector running long-term, you should use the default credential chain
+	// rather than temporary session tokens which will expire. For production environments,
+	// it's recommended to use IAM roles (IRSA, EC2 instance profile, or ECS task role).
 	AWSSessionToken string `json:"aws.sessionToken"`
 	// AWSURL The URL for AWS (useful when testing the connector with localstack).
 	AWSURL string `json:"aws.url"`
@@ -65,6 +71,30 @@ type SourceConfig struct {
 	RecordsPollingPeriod time.Duration `json:"recordsPollingPeriod" default:"1s"`
 	// SkipSnapshot determines weather to skip the snapshot or not.
 	SkipSnapshot bool `json:"skipSnapshot" default:"false"`
+}
+
+// AWSLoadOpts returns the AWS configuration options based on the source config.
+func (c SourceConfig) AWSLoadOpts() []func(*config.LoadOptions) error {
+	opts := []func(*config.LoadOptions) error{
+		config.WithRegion(c.AWSRegion),
+	}
+
+	// Only use static credentials if both access key and secret are provided
+	if c.AWSAccessKeyID != "" && c.AWSSecretAccessKey != "" {
+		opts = append(opts,
+			config.WithCredentialsProvider(
+				aws.NewCredentialsCache(
+					credentials.NewStaticCredentialsProvider(
+						c.AWSAccessKeyID,
+						c.AWSSecretAccessKey,
+						c.AWSSessionToken,
+					),
+				),
+			),
+		)
+	}
+
+	return opts
 }
 
 type Iterator interface {
@@ -84,10 +114,8 @@ func (s *Source) Config() sdk.SourceConfig {
 func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 	sdk.Logger(ctx).Info().Msg("Opening DynamoDB Source...")
 
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(s.config.AWSRegion),
-		config.WithCredentialsProvider(aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(s.config.AWSAccessKeyID, s.config.AWSSecretAccessKey, s.config.AWSSessionToken))),
-	)
+	// Load AWS config with options from source config
+	cfg, err := config.LoadDefaultConfig(ctx, s.config.AWSLoadOpts()...)
 	if err != nil {
 		return fmt.Errorf("could not load AWS config: %w", err)
 	}
