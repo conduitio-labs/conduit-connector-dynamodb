@@ -48,13 +48,18 @@ type SourceConfig struct {
 	sdk.DefaultSourceMiddleware
 	Config
 
-	// discovery polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.
+	// Discovery polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.
 	DiscoveryPollingPeriod time.Duration `json:"discoveryPollingPeriod" default:"10s"`
-	// records polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.
+	// Records polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.
 	RecordsPollingPeriod time.Duration `json:"recordsPollingPeriod" default:"1s"`
-	// skipSnapshot determines weather to skip the snapshot or not.
+	// SkipSnapshot determines weather to skip the snapshot or not.
 	SkipSnapshot bool `json:"skipSnapshot" default:"false"`
+
+	// AWS temporary session token. Note that to keep the connector running long-term, you should use an IAM user with no temporary session token.
+	// If the session token is used, then the connector will fail once it expires.
+	AWSSessionToken string `json:"aws.sessionToken"`
 }
+
 
 type Iterator interface {
 	HasNext(ctx context.Context) bool
@@ -75,7 +80,7 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(s.config.AWSRegion),
-		config.WithCredentialsProvider(aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(s.config.AWSAccessKeyID, s.config.AWSSecretAccessKey, ""))),
+		config.WithCredentialsProvider(aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(s.config.AWSAccessKeyID, s.config.AWSSecretAccessKey, s.config.AWSSessionToken))),
 	)
 	if err != nil {
 		return fmt.Errorf("could not load AWS config: %w", err)
