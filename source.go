@@ -56,6 +56,30 @@ type SourceConfig struct {
 	SkipSnapshot bool `json:"skipSnapshot" default:"false"`
 }
 
+// AWSLoadOpts returns the AWS configuration options based on the source config.
+func (c SourceConfig) AWSLoadOpts() []func(*config.LoadOptions) error {
+	opts := []func(*config.LoadOptions) error{
+		config.WithRegion(c.AWSRegion),
+	}
+
+	// Only use static credentials if both access key and secret are provided
+	if c.AWSAccessKeyID != "" && c.AWSSecretAccessKey != "" {
+		opts = append(opts,
+			config.WithCredentialsProvider(
+				aws.NewCredentialsCache(
+					credentials.NewStaticCredentialsProvider(
+						c.AWSAccessKeyID,
+						c.AWSSecretAccessKey,
+						c.AWSSessionToken,
+					),
+				),
+			),
+		)
+	}
+
+	return opts
+}
+
 type Iterator interface {
 	HasNext(ctx context.Context) bool
 	Next(ctx context.Context) (opencdc.Record, error)
@@ -73,10 +97,8 @@ func (s *Source) Config() sdk.SourceConfig {
 func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 	sdk.Logger(ctx).Info().Msg("Opening DynamoDB Source...")
 
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(s.config.AWSRegion),
-		config.WithCredentialsProvider(aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(s.config.AWSAccessKeyID, s.config.AWSSecretAccessKey, s.config.AWSSessionToken))),
-	)
+	// Load AWS config with options from source config
+	cfg, err := config.LoadDefaultConfig(ctx, s.config.AWSLoadOpts()...)
 	if err != nil {
 		return fmt.Errorf("could not load AWS config: %w", err)
 	}

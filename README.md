@@ -62,7 +62,7 @@ pipelines:
           # Type: string
           # Required: yes
           aws.secretAccessKey: ""
-          # Table is the DynamoDB table name to read from, or write into.
+          # Table is the DynamoDB table name to pull data from.
           # Type: string
           # Required: yes
           table: ""
@@ -73,7 +73,8 @@ pipelines:
           # Type: string
           # Required: no
           aws.sessionToken: ""
-          # The URL for AWS (useful when testing the connector with localstack).
+          # AWSURL The URL for AWS (useful when testing the connector with
+          # localstack).
           # Type: string
           # Required: no
           aws.url: ""
@@ -138,89 +139,5 @@ pipelines:
           sdk.schema.extract.type: "avro"
 ```
 <!-- /readmegen:source.parameters.yaml -->
-
-## Destination Configuration Parameters
-
-<!-- readmegen:destination.parameters.yaml -->
-```yaml
-version: 2.2
-pipelines:
-  - id: example
-    status: running
-    connectors:
-      - id: example
-        plugin: "dynamodb"
-        settings:
-          # AWS access key id.
-          # Type: string
-          # Required: yes
-          aws.accessKeyId: ""
-          # AWS region.
-          # Type: string
-          # Required: yes
-          aws.region: ""
-          # AWS secret access key.
-          # Type: string
-          # Required: yes
-          aws.secretAccessKey: ""
-          # Table is the DynamoDB table name to read from, or write into.
-          # Type: string
-          # Required: yes
-          table: ""
-          # AWS temporary session token. Note that to keep the connector running
-          # long-term, you should use an IAM user with no temporary session
-          # token. If the session token is used, then the connector will fail
-          # once it expires.
-          # Type: string
-          # Required: no
-          aws.sessionToken: ""
-          # The URL for AWS (useful when testing the connector with localstack).
-          # Type: string
-          # Required: no
-          aws.url: ""
-          # Maximum delay before an incomplete batch is written to the
-          # destination.
-          # Type: duration
-          # Required: no
-          sdk.batch.delay: "0"
-          # Maximum size of batch before it gets written to the destination.
-          # Type: int
-          # Required: no
-          sdk.batch.size: "0"
-          # Allow bursts of at most X records (0 or less means that bursts are
-          # not limited). Only takes effect if a rate limit per second is set.
-          # Note that if `sdk.batch.size` is bigger than `sdk.rate.burst`, the
-          # effective batch size will be equal to `sdk.rate.burst`.
-          # Type: int
-          # Required: no
-          sdk.rate.burst: "0"
-          # Maximum number of records written per second (0 means no rate
-          # limit).
-          # Type: float
-          # Required: no
-          sdk.rate.perSecond: "0"
-          # The format of the output record. See the Conduit documentation for a
-          # full list of supported formats
-          # (https://conduit.io/docs/using/connectors/configuration-parameters/output-format).
-          # Type: string
-          # Required: no
-          sdk.record.format: "opencdc/json"
-          # Options to configure the chosen output record format. Options are
-          # normally key=value pairs separated with comma (e.g.
-          # opt1=val2,opt2=val2), except for the `template` record format, where
-          # options are a Go template.
-          # Type: string
-          # Required: no
-          sdk.record.format.options: ""
-          # Whether to extract and decode the record key with a schema.
-          # Type: bool
-          # Required: no
-          sdk.schema.extract.key.enabled: "true"
-          # Whether to extract and decode the record payload with a schema.
-          # Type: bool
-          # Required: no
-          sdk.schema.extract.payload.enabled: "true"
-```
-<!-- /readmegen:destination.parameters.yaml -->
 
 ![scarf pixel connector-dynamodb-readme](https://static.scarf.sh/a.png?x-pxid=cbb3901b-e502-4106-aa10-0b0726532dd6)
