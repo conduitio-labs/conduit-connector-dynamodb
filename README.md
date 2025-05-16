@@ -33,6 +33,9 @@ A destination connector that takes a conduit record and stores it into a DynamoD
 The Destination is designed to handle different kinds of operations, based on the `Operation` field in the record
 received, the destination will either `insert`, `update` or `delete` the record in the target table. Snapshot records
 are always inserted.
+
+> **Note:** Make sure to create the destination table before running the pipeline, the table needs to have the same schema as the
+records that will be sent into it from the source, or the processors.
 <!-- /readmegen:description -->
 
 ## Source Configuration Parameters
@@ -59,7 +62,7 @@ pipelines:
           # Type: string
           # Required: yes
           aws.secretAccessKey: ""
-          # Table is the DynamoDB table name to pull data from.
+          # Table is the DynamoDB table name to read from, or write into.
           # Type: string
           # Required: yes
           table: ""
@@ -70,8 +73,7 @@ pipelines:
           # Type: string
           # Required: no
           aws.sessionToken: ""
-          # AWSURL The URL for AWS (useful when testing the connector with
-          # localstack).
+          # The URL for AWS (useful when testing the connector with localstack).
           # Type: string
           # Required: no
           aws.url: ""
@@ -138,6 +140,7 @@ pipelines:
 <!-- /readmegen:source.parameters.yaml -->
 
 ## Destination Configuration Parameters
+
 <!-- readmegen:destination.parameters.yaml -->
 ```yaml
 version: 2.2
@@ -160,7 +163,7 @@ pipelines:
           # Type: string
           # Required: yes
           aws.secretAccessKey: ""
-          # Table is the DynamoDB table name to pull data from.
+          # Table is the DynamoDB table name to read from, or write into.
           # Type: string
           # Required: yes
           table: ""
@@ -171,8 +174,7 @@ pipelines:
           # Type: string
           # Required: no
           aws.sessionToken: ""
-          # AWSURL The URL for AWS (useful when testing the connector with
-          # localstack).
+          # The URL for AWS (useful when testing the connector with localstack).
           # Type: string
           # Required: no
           aws.url: ""

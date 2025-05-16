@@ -18,7 +18,7 @@ package dynamodb
 // destination. If you don't need shared parameters you can entirely remove this
 // file.
 type Config struct {
-	// Table is the DynamoDB table name to pull data from.
+	// Table is the DynamoDB table name to read from, or write into.
 	Table string `json:"table" validate:"required"`
 	// AWS region.
 	AWSRegion string `json:"aws.region" validate:"required"`
@@ -26,7 +26,7 @@ type Config struct {
 	AWSAccessKeyID string `json:"aws.accessKeyId" validate:"required"`
 	// AWS secret access key.
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
-	// AWSURL The URL for AWS (useful when testing the connector with localstack).
+	// The URL for AWS (useful when testing the connector with localstack).
 	AWSURL string `json:"aws.url"`
 	// AWS temporary session token. Note that to keep the connector running long-term, you should use an IAM user with no temporary session token.
 	// If the session token is used, then the connector will fail once it expires.
