@@ -3,7 +3,6 @@ module github.com/conduitio-labs/conduit-connector-dynamodb/tools
 go 1.24.2
 
 tool (
-	github.com/conduitio/conduit-commons/paramgen
 	github.com/conduitio/conduit-connector-sdk/conn-sdk-cli
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 	mvdan.cc/gofumpt
