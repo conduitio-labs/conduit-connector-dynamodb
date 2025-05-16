@@ -54,7 +54,8 @@ pipelines:
           # Type: string
           # Required: yes
           aws.region: ""
-          # Table is the DynamoDB table name to pull data from.
+          # Table is the DynamoDB table name to pull data from, or push data
+          # into.
           # Type: string
           # Required: yes
           table: ""
@@ -83,8 +84,7 @@ pipelines:
           # Type: string
           # Required: no
           aws.sessionToken: ""
-          # AWSURL The URL for AWS (useful when testing the connector with
-          # localstack).
+          # The URL for AWS (useful when testing the connector with localstack).
           # Type: string
           # Required: no
           aws.url: ""
@@ -166,7 +166,8 @@ pipelines:
           # Type: string
           # Required: yes
           aws.region: ""
-          # Table is the DynamoDB table name to pull data from.
+          # Table is the DynamoDB table name to pull data from, or push data
+          # into.
           # Type: string
           # Required: yes
           table: ""
@@ -195,8 +196,7 @@ pipelines:
           # Type: string
           # Required: no
           aws.sessionToken: ""
-          # AWSURL The URL for AWS (useful when testing the connector with
-          # localstack).
+          # The URL for AWS (useful when testing the connector with localstack).
           # Type: string
           # Required: no
           aws.url: ""

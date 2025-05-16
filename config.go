@@ -18,7 +18,7 @@ package dynamodb
 // destination. If you don't need shared parameters you can entirely remove this
 // file.
 type Config struct {
-	// Table is the DynamoDB table name to pull data from.
+	// Table is the DynamoDB table name to pull data from, or push data into.
 	Table string `json:"table" validate:"required"`
 	// AWS region.
 	AWSRegion string `json:"aws.region" validate:"required"`
@@ -35,6 +35,6 @@ type Config struct {
 	// rather than temporary session tokens which will expire. For production environments,
 	// it's recommended to use IAM roles (IRSA, EC2 instance profile, or ECS task role).
 	AWSSessionToken string `json:"aws.sessionToken"`
-	// AWSURL The URL for AWS (useful when testing the connector with localstack).
+	// The URL for AWS (useful when testing the connector with localstack).
 	AWSURL string `json:"aws.url"`
 }

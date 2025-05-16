@@ -36,7 +36,7 @@ specification:
           - type: required
             value: ""
       - name: table
-        description: Table is the DynamoDB table name to pull data from.
+        description: Table is the DynamoDB table name to pull data from, or push data into.
         type: string
         default: ""
         validations:
@@ -68,7 +68,7 @@ specification:
         default: ""
         validations: []
       - name: aws.url
-        description: AWSURL The URL for AWS (useful when testing the connector with localstack).
+        description: The URL for AWS (useful when testing the connector with localstack).
         type: string
         default: ""
         validations: []
@@ -157,7 +157,7 @@ specification:
           - type: required
             value: ""
       - name: table
-        description: Table is the DynamoDB table name to pull data from.
+        description: Table is the DynamoDB table name to pull data from, or push data into.
         type: string
         default: ""
         validations:
@@ -189,7 +189,7 @@ specification:
         default: ""
         validations: []
       - name: aws.url
-        description: AWSURL The URL for AWS (useful when testing the connector with localstack).
+        description: The URL for AWS (useful when testing the connector with localstack).
         type: string
         default: ""
         validations: []
