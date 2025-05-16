@@ -2,8 +2,6 @@ version: "1.0"
 specification:
   name: dynamodb
   summary: A DynamoDB source plugin for Conduit
-  description: A DynamoDB source plugin for Conduit, it scans the table at the beginning taking a snapshot, then starts listening to CDC events using DynamoDB streams.
-  version: v0.4.0
   description: |
     ## Source
     A source connector that pulls data from a DynamoDB table to downstream resources via Conduit.
@@ -24,27 +22,14 @@ specification:
     received, the destination will either `insert`, `update` or `delete` the record in the target table. Snapshot records
     are always inserted.
 
-    > **Note:** Make sure to create the destination table before running the pipeline, the table needs to have the same 
+    > **Note:** Make sure to create the destination table before running the pipeline, the table needs to have the same
     schema as the records that will be sent into it, either from the source, or from a processor.
+  version: v0.4.0
   author: Meroxa, Inc.
   source:
     parameters:
-      - name: aws.accessKeyId
-        description: AWS access key id.
-        type: string
-        default: ""
-        validations:
-          - type: required
-            value: ""
       - name: aws.region
         description: AWS region.
-        type: string
-        default: ""
-        validations:
-          - type: required
-            value: ""
-      - name: aws.secretAccessKey
-        description: AWS secret access key.
         type: string
         default: ""
         validations:
@@ -57,10 +42,28 @@ specification:
         validations:
           - type: required
             value: ""
+      - name: aws.accessKeyId
+        description: |-
+          AWS access key id. Optional - if not provided, the connector will use the default credential chain
+          (environment variables, shared credentials file, or IAM role). For production environments,
+          it's recommended to use the default credential chain with IAM roles rather than static credentials.
+        type: string
+        default: ""
+        validations: []
+      - name: aws.secretAccessKey
+        description: |-
+          AWS secret access key. Optional - if not provided, the connector will use the default credential chain
+          (environment variables, shared credentials file, or IAM role). For production environments,
+          it's recommended to use the default credential chain with IAM roles rather than static credentials.
+        type: string
+        default: ""
+        validations: []
       - name: aws.sessionToken
         description: |-
-          AWS temporary session token. Note that to keep the connector running long-term, you should use an IAM user with no temporary session token.
-          If the session token is used, then the connector will fail once it expires.
+          AWS temporary session token. Optional - if not provided, the connector will use the default credential chain.
+          Note that to keep the connector running long-term, you should use the default credential chain
+          rather than temporary session tokens which will expire. For production environments,
+          it's recommended to use IAM roles (IRSA, EC2 instance profile, or ECS task role).
         type: string
         default: ""
         validations: []
@@ -144,3 +147,104 @@ specification:
         validations:
           - type: inclusion
             value: avro
+  destination:
+    parameters:
+      - name: aws.region
+        description: AWS region.
+        type: string
+        default: ""
+        validations:
+          - type: required
+            value: ""
+      - name: table
+        description: Table is the DynamoDB table name to pull data from.
+        type: string
+        default: ""
+        validations:
+          - type: required
+            value: ""
+      - name: aws.accessKeyId
+        description: |-
+          AWS access key id. Optional - if not provided, the connector will use the default credential chain
+          (environment variables, shared credentials file, or IAM role). For production environments,
+          it's recommended to use the default credential chain with IAM roles rather than static credentials.
+        type: string
+        default: ""
+        validations: []
+      - name: aws.secretAccessKey
+        description: |-
+          AWS secret access key. Optional - if not provided, the connector will use the default credential chain
+          (environment variables, shared credentials file, or IAM role). For production environments,
+          it's recommended to use the default credential chain with IAM roles rather than static credentials.
+        type: string
+        default: ""
+        validations: []
+      - name: aws.sessionToken
+        description: |-
+          AWS temporary session token. Optional - if not provided, the connector will use the default credential chain.
+          Note that to keep the connector running long-term, you should use the default credential chain
+          rather than temporary session tokens which will expire. For production environments,
+          it's recommended to use IAM roles (IRSA, EC2 instance profile, or ECS task role).
+        type: string
+        default: ""
+        validations: []
+      - name: aws.url
+        description: AWSURL The URL for AWS (useful when testing the connector with localstack).
+        type: string
+        default: ""
+        validations: []
+      - name: sdk.batch.delay
+        description: Maximum delay before an incomplete batch is written to the destination.
+        type: duration
+        default: "0"
+        validations: []
+      - name: sdk.batch.size
+        description: Maximum size of batch before it gets written to the destination.
+        type: int
+        default: "0"
+        validations:
+          - type: greater-than
+            value: "-1"
+      - name: sdk.rate.burst
+        description: |-
+          Allow bursts of at most X records (0 or less means that bursts are not
+          limited). Only takes effect if a rate limit per second is set. Note that
+          if `sdk.batch.size` is bigger than `sdk.rate.burst`, the effective batch
+          size will be equal to `sdk.rate.burst`.
+        type: int
+        default: "0"
+        validations:
+          - type: greater-than
+            value: "-1"
+      - name: sdk.rate.perSecond
+        description: Maximum number of records written per second (0 means no rate limit).
+        type: float
+        default: "0"
+        validations:
+          - type: greater-than
+            value: "-1"
+      - name: sdk.record.format
+        description: |-
+          The format of the output record. See the Conduit documentation for a full
+          list of supported formats (https://conduit.io/docs/using/connectors/configuration-parameters/output-format).
+        type: string
+        default: opencdc/json
+        validations: []
+      - name: sdk.record.format.options
+        description: |-
+          Options to configure the chosen output record format. Options are normally
+          key=value pairs separated with comma (e.g. opt1=val2,opt2=val2), except
+          for the `template` record format, where options are a Go template.
+        type: string
+        default: ""
+        validations: []
+      - name: sdk.schema.extract.key.enabled
+        description: Whether to extract and decode the record key with a schema.
+        type: bool
+        default: "true"
+        validations: []
+      - name: sdk.schema.extract.payload.enabled
+        description: Whether to extract and decode the record payload with a schema.
+        type: bool
+        default: "true"
+        validations: []
