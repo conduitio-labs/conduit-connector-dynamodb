@@ -36,16 +36,16 @@ import (
 )
 
 var (
-	PartitionKey                       = "pkey"
-	SortKey                            = "skey"
-	SourceConfigTable                  = "table"
-	SourceConfigAwsAccessKeyID         = "aws.accessKeyId"
-	SourceConfigAwsRegion              = "aws.region"
-	SourceConfigAwsSecretAccessKey     = "aws.secretAccessKey"
-	SourceConfigAwsURL                 = "aws.url"
-	SourceConfigDiscoveryPollingPeriod = "discoveryPollingPeriod"
-	SourceConfigRecordsPollingPeriod   = "recordsPollingPeriod"
-	SourceConfigSkipSnapshot           = "skipSnapshot"
+	PartitionKey                 = "pkey"
+	SortKey                      = "skey"
+	ConfigTable                  = "table"
+	ConfigAwsAccessKeyID         = "aws.accessKeyId"
+	ConfigAwsRegion              = "aws.region"
+	ConfigAwsSecretAccessKey     = "aws.secretAccessKey"
+	ConfigAwsURL                 = "aws.url"
+	ConfigDiscoveryPollingPeriod = "discoveryPollingPeriod"
+	ConfigRecordsPollingPeriod   = "recordsPollingPeriod"
+	ConfigSkipSnapshot           = "skipSnapshot"
 )
 
 // Records is a slice of opencdc.Record, that can be sorted by the sort key under record.Key["skey"].
@@ -77,9 +77,9 @@ func (r Records) Swap(i, j int) {
 func TestSource_SuccessfulSnapshot(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
-	client, cfg := prepareIntegrationTest(ctx, t)
+	client, cfg := prepareSourceIntegrationTest(ctx, t)
 
-	testTable := cfg[SourceConfigTable]
+	testTable := cfg[ConfigTable]
 	source := &Source{}
 	defer func() {
 		err := source.Teardown(ctx)
@@ -120,8 +120,8 @@ func TestSource_SuccessfulSnapshot(t *testing.T) {
 func TestSource_SnapshotRestart(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
-	client, cfg := prepareIntegrationTest(ctx, t)
-	testTable := cfg[SourceConfigTable]
+	client, cfg := prepareSourceIntegrationTest(ctx, t)
+	testTable := cfg[ConfigTable]
 	source := &Source{}
 	defer func() {
 		err := source.Teardown(ctx)
@@ -160,8 +160,8 @@ func TestSource_SnapshotRestart(t *testing.T) {
 func TestSource_EmptyTable(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
-	client, cfg := prepareIntegrationTest(ctx, t)
-	testTable := cfg[SourceConfigTable]
+	client, cfg := prepareSourceIntegrationTest(ctx, t)
+	testTable := cfg[ConfigTable]
 
 	source := &Source{}
 	defer func() {
@@ -200,9 +200,9 @@ func TestSource_EmptyTable(t *testing.T) {
 func TestSource_NonExistentTable(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
-	_, cfg := prepareIntegrationTest(ctx, t)
+	_, cfg := prepareSourceIntegrationTest(ctx, t)
 	// set the table name to a unique uuid, so it doesn't exist.
-	cfg[SourceConfigTable] = uuid.NewString()
+	cfg[ConfigTable] = uuid.NewString()
 
 	source := &Source{}
 	defer func() {
@@ -221,9 +221,9 @@ func TestSource_NonExistentTable(t *testing.T) {
 func TestSource_CDC(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
-	client, cfg := prepareIntegrationTest(ctx, t)
+	client, cfg := prepareSourceIntegrationTest(ctx, t)
 	//
-	testTable := cfg[SourceConfigTable]
+	testTable := cfg[ConfigTable]
 	source := &Source{}
 	defer func() {
 		err := source.Teardown(ctx)
@@ -303,17 +303,17 @@ func TestSource_CDC(t *testing.T) {
 	}
 }
 
-func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client, map[string]string) {
+func prepareSourceIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client, map[string]string) {
 	t.Helper()
 
 	// default params, connects to DynamoDB docker instance.
 	cfg := map[string]string{
-		SourceConfigAwsAccessKeyID:         "test",
-		SourceConfigAwsSecretAccessKey:     "test",
-		SourceConfigAwsRegion:              "us-east-1",
-		SourceConfigDiscoveryPollingPeriod: "5s",
-		SourceConfigRecordsPollingPeriod:   "1s",
-		SourceConfigAwsURL:                 "http://localhost:4566", // docker url
+		ConfigAwsAccessKeyID:         "test",
+		ConfigAwsSecretAccessKey:     "test",
+		ConfigAwsRegion:              "us-east-1",
+		ConfigDiscoveryPollingPeriod: "5s",
+		ConfigRecordsPollingPeriod:   "1s",
+		ConfigAwsURL:                 "http://localhost:4566", // docker url
 	}
 
 	awsAccessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
@@ -321,12 +321,12 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 	awsRegion := os.Getenv("AWS_REGION")
 	if awsRegion != "" && awsAccessKeyID != "" && awsSecretAccessKey != "" {
 		cfg = map[string]string{
-			SourceConfigAwsAccessKeyID:         awsAccessKeyID,
-			SourceConfigAwsSecretAccessKey:     awsSecretAccessKey,
-			SourceConfigAwsRegion:              awsRegion,
-			SourceConfigDiscoveryPollingPeriod: "5s",
-			SourceConfigRecordsPollingPeriod:   "1s",
-			SourceConfigAwsURL:                 "", // empty, so real AWS DynamoDB will be used instead.
+			ConfigAwsAccessKeyID:         awsAccessKeyID,
+			ConfigAwsSecretAccessKey:     awsSecretAccessKey,
+			ConfigAwsRegion:              awsRegion,
+			ConfigDiscoveryPollingPeriod: "5s",
+			ConfigRecordsPollingPeriod:   "1s",
+			ConfigAwsURL:                 "", // empty, so real AWS DynamoDB will be used instead.
 		}
 	}
 
@@ -336,7 +336,7 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 	}
 
 	table := "conduit-dynamodb-source-test-" + uuid.NewString()
-	cfg[SourceConfigTable] = table
+	cfg[ConfigTable] = table
 
 	// create table
 	err = createTable(ctx, client, table, PartitionKey, SortKey)
@@ -356,18 +356,18 @@ func prepareIntegrationTest(ctx context.Context, t *testing.T) (*dynamodb.Client
 
 func newDynamoClients(ctx context.Context, cfg map[string]string) (*dynamodb.Client, error) {
 	clientCfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(cfg[SourceConfigAwsRegion]),
-		config.WithCredentialsProvider(aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(cfg[SourceConfigAwsAccessKeyID], cfg[SourceConfigAwsSecretAccessKey], ""))),
+		config.WithRegion(cfg[ConfigAwsRegion]),
+		config.WithCredentialsProvider(aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(cfg[ConfigAwsAccessKeyID], cfg[ConfigAwsSecretAccessKey], ""))),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error creating AWS session: %w", err)
 	}
 
 	var dynamoDBClient *dynamodb.Client
-	if cfg[SourceConfigAwsURL] != "" {
+	if cfg[ConfigAwsURL] != "" {
 		dynamoDBClient = dynamodb.NewFromConfig(clientCfg, func(o *dynamodb.Options) {
 			o.EndpointResolverV2 = staticResolver{
-				BaseURL: cfg[SourceConfigAwsURL],
+				BaseURL: cfg[ConfigAwsURL],
 			}
 		})
 	} else {

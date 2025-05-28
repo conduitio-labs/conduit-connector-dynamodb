@@ -46,25 +46,8 @@ type Source struct {
 
 type SourceConfig struct {
 	sdk.DefaultSourceMiddleware
-	// Table is the DynamoDB table name to pull data from.
-	Table string `json:"table" validate:"required"`
-	// AWS region.
-	AWSRegion string `json:"aws.region" validate:"required"`
-	// AWS access key id. Optional - if not provided, the connector will use the default credential chain
-	// (environment variables, shared credentials file, or IAM role). For production environments,
-	// it's recommended to use the default credential chain with IAM roles rather than static credentials.
-	AWSAccessKeyID string `json:"aws.accessKeyId"`
-	// AWS secret access key. Optional - if not provided, the connector will use the default credential chain
-	// (environment variables, shared credentials file, or IAM role). For production environments,
-	// it's recommended to use the default credential chain with IAM roles rather than static credentials.
-	AWSSecretAccessKey string `json:"aws.secretAccessKey"`
-	// AWS temporary session token. Optional - if not provided, the connector will use the default credential chain.
-	// Note that to keep the connector running long-term, you should use the default credential chain
-	// rather than temporary session tokens which will expire. For production environments,
-	// it's recommended to use IAM roles (IRSA, EC2 instance profile, or ECS task role).
-	AWSSessionToken string `json:"aws.sessionToken"`
-	// AWSURL The URL for AWS (useful when testing the connector with localstack).
-	AWSURL string `json:"aws.url"`
+	Config
+
 	// Discovery polling period for the CDC mode of how often to check for new shards in the DynamoDB Stream, formatted as a time.Duration string.
 	DiscoveryPollingPeriod time.Duration `json:"discoveryPollingPeriod" default:"10s"`
 	// Records polling period for the CDC mode of how often to get new records from a shard, formatted as a time.Duration string.
