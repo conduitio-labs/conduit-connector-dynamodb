@@ -67,6 +67,11 @@ pipelines:
           # Type: string
           # Required: no
           aws.accessKeyId: ""
+          # AWS AssumeRoleChain. Optional - if not provided, the connector will
+          # use the default credential chain.
+          # Type: string
+          # Required: no
+          aws.assumeRoleArn: ""
           # AWS secret access key. Optional - if not provided, the connector
           # will use the default credential chain (environment variables, shared
           # credentials file, or IAM role). For production environments, it's
@@ -179,6 +184,11 @@ pipelines:
           # Type: string
           # Required: no
           aws.accessKeyId: ""
+          # AWS AssumeRoleChain. Optional - if not provided, the connector will
+          # use the default credential chain.
+          # Type: string
+          # Required: no
+          aws.assumeRoleArn: ""
           # AWS secret access key. Optional - if not provided, the connector
           # will use the default credential chain (environment variables, shared
           # credentials file, or IAM role). For production environments, it's

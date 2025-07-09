@@ -50,6 +50,11 @@ specification:
         type: string
         default: ""
         validations: []
+      - name: aws.assumeRoleArn
+        description: AWS AssumeRoleChain. Optional - if not provided, the connector will use the default credential chain.
+        type: string
+        default: ""
+        validations: []
       - name: aws.secretAccessKey
         description: |-
           AWS secret access key. Optional - if not provided, the connector will use the default credential chain
@@ -168,6 +173,11 @@ specification:
           AWS access key id. Optional - if not provided, the connector will use the default credential chain
           (environment variables, shared credentials file, or IAM role). For production environments,
           it's recommended to use the default credential chain with IAM roles rather than static credentials.
+        type: string
+        default: ""
+        validations: []
+      - name: aws.assumeRoleArn
+        description: AWS AssumeRoleChain. Optional - if not provided, the connector will use the default credential chain.
         type: string
         default: ""
         validations: []
