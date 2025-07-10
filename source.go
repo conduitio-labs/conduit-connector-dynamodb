@@ -80,17 +80,17 @@ func (c SourceConfig) AWSLoadOpts() []func(*config.LoadOptions) error {
 	}
 
 	if c.AWSAssumeRoleArn != "" {
-        opts = append(opts, func(lo *config.LoadOptions) error {
-            // lo.Credentials：the service account role
-            stsc := sts.NewFromConfig(aws.Config{
-                Region:      c.AWSRegion,
-                Credentials: lo.Credentials,
-            })
-            provider := stscreds.NewAssumeRoleProvider(stsc, c.AWSAssumeRoleArn)
-            lo.Credentials = aws.NewCredentialsCache(provider)
-            return nil
-        })
-    }
+		opts = append(opts, func(lo *config.LoadOptions) error {
+			// lo.Credentials：the service account role
+			stsc := sts.NewFromConfig(aws.Config{
+				Region:      c.AWSRegion,
+				Credentials: lo.Credentials,
+			})
+			provider := stscreds.NewAssumeRoleProvider(stsc, c.AWSAssumeRoleArn)
+			lo.Credentials = aws.NewCredentialsCache(provider)
+			return nil
+		})
+	}
 
 	return opts
 }
