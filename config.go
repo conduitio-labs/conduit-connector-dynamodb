@@ -37,4 +37,6 @@ type Config struct {
 	AWSSessionToken string `json:"aws.sessionToken"`
 	// The URL for AWS (useful when testing the connector with localstack).
 	AWSURL string `json:"aws.url"`
+	// AWS AssumeRoleChain. Optional - if not provided, the connector will use the default credential chain.
+	AWSAssumeRoleArn string `json:"aws.assumeRoleArn"`
 }
