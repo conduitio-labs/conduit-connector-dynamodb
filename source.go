@@ -28,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	smithyendpoints "github.com/aws/smithy-go/endpoints"
 	"github.com/conduitio-labs/conduit-connector-dynamodb/iterator"
 	"github.com/conduitio-labs/conduit-connector-dynamodb/position"
@@ -80,16 +79,11 @@ func (c SourceConfig) AWSLoadOpts() []func(*config.LoadOptions) error {
 	}
 
 	if c.AWSAssumeRoleArn != "" {
-		opts = append(opts, func(lo *config.LoadOptions) error {
-			// lo.Credentials：the service account role
-			stsc := sts.NewFromConfig(aws.Config{
-				Region:      c.AWSRegion,
-				Credentials: lo.Credentials,
-			})
-			provider := stscreds.NewAssumeRoleProvider(stsc, c.AWSAssumeRoleArn)
-			lo.Credentials = aws.NewCredentialsCache(provider)
-			return nil
-		})
+		opts = append(opts,
+			config.WithAssumeRoleCredentialOptions(func(o *stscreds.AssumeRoleOptions) {
+				o.RoleARN = c.AWSAssumeRoleArn
+			}),
+		)
 	}
 
 	return opts
