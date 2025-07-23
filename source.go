@@ -84,12 +84,11 @@ func (c SourceConfig) AWSLoadOpts(ctx context.Context) ([]func(*config.LoadOptio
 		// Load default AWS config with our options
 		cfg, err := config.LoadDefaultConfig(ctx, opts...)
 		if err != nil {
-			return nil, fmt.Errorf("Error loading AWS config for AWS Assume Role: %w", err)
-		} else {
-			stsClient := sts.NewFromConfig(cfg)
-			assumeRoleProvider := stscreds.NewAssumeRoleProvider(stsClient, c.AWSAssumeRoleArn)
-			opts = append(opts, config.WithCredentialsProvider(aws.NewCredentialsCache(assumeRoleProvider)))
+			return nil, fmt.Errorf("error loading AWS config for AWS Assume Role: %w", err)
 		}
+		stsClient := sts.NewFromConfig(cfg)
+		assumeRoleProvider := stscreds.NewAssumeRoleProvider(stsClient, c.AWSAssumeRoleArn)
+		opts = append(opts, config.WithCredentialsProvider(aws.NewCredentialsCache(assumeRoleProvider)))
 	}
 
 	return opts, nil
