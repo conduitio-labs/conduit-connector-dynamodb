@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	smithyendpoints "github.com/aws/smithy-go/endpoints"
 	"github.com/conduitio-labs/conduit-connector-dynamodb/iterator"
 	"github.com/conduitio-labs/conduit-connector-dynamodb/position"
@@ -79,11 +80,16 @@ func (c SourceConfig) AWSLoadOpts() []func(*config.LoadOptions) error {
 	}
 
 	if c.AWSAssumeRoleArn != "" {
-		opts = append(opts,
-			config.WithAssumeRoleCredentialOptions(func(o *stscreds.AssumeRoleOptions) {
-				o.RoleARN = c.AWSAssumeRoleArn
-			}),
-		)
+		fmt.Println("Use assume role")
+		// Load default AWS config with our options
+		cfg, err := config.LoadDefaultConfig(context.Background(), opts...)
+		if err != nil {
+			fmt.Printf("Error loading AWS config: %v\n", err)
+		} else {
+			stsClient := sts.NewFromConfig(cfg)
+			assumeRoleProvider := stscreds.NewAssumeRoleProvider(stsClient, c.AWSAssumeRoleArn)
+			opts = append(opts, config.WithCredentialsProvider(aws.NewCredentialsCache(assumeRoleProvider)))
+		}
 	}
 
 	return opts
