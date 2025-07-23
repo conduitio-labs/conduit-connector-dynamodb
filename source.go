@@ -59,7 +59,7 @@ type SourceConfig struct {
 }
 
 // AWSLoadOpts returns the AWS configuration options based on the source config.
-func (c SourceConfig) AWSLoadOpts() []func(*config.LoadOptions) error {
+func (c SourceConfig) AWSLoadOpts(ctx context.Context) []func(*config.LoadOptions) error {
 	opts := []func(*config.LoadOptions) error{
 		config.WithRegion(c.AWSRegion),
 	}
@@ -82,7 +82,7 @@ func (c SourceConfig) AWSLoadOpts() []func(*config.LoadOptions) error {
 	if c.AWSAssumeRoleArn != "" {
 		fmt.Println("Use assume role")
 		// Load default AWS config with our options
-		cfg, err := config.LoadDefaultConfig(context.Background(), opts...)
+		cfg, err := config.LoadDefaultConfig(ctx, opts...)
 		if err != nil {
 			fmt.Printf("Error loading AWS config: %v\n", err)
 		} else {
@@ -113,7 +113,7 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 	sdk.Logger(ctx).Info().Msg("Opening DynamoDB Source...")
 
 	// Load AWS config with options from source config
-	cfg, err := config.LoadDefaultConfig(ctx, s.config.AWSLoadOpts()...)
+	cfg, err := config.LoadDefaultConfig(ctx, s.config.AWSLoadOpts(ctx)...)
 	if err != nil {
 		return fmt.Errorf("could not load AWS config: %w", err)
 	}
