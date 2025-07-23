@@ -59,7 +59,7 @@ type SourceConfig struct {
 }
 
 // AWSLoadOpts returns the AWS configuration options based on the source config.
-func (c SourceConfig) AWSLoadOpts(ctx context.Context) []func(*config.LoadOptions) error {
+func (c SourceConfig) AWSLoadOpts(ctx context.Context) ([]func(*config.LoadOptions) error, error) {
 	opts := []func(*config.LoadOptions) error{
 		config.WithRegion(c.AWSRegion),
 	}
@@ -84,7 +84,7 @@ func (c SourceConfig) AWSLoadOpts(ctx context.Context) []func(*config.LoadOption
 		// Load default AWS config with our options
 		cfg, err := config.LoadDefaultConfig(ctx, opts...)
 		if err != nil {
-			fmt.Errorf("Error loading AWS config for AWS Assume Role: %w", err)
+			return nil, fmt.Errorf("Error loading AWS config for AWS Assume Role: %w", err)
 		} else {
 			stsClient := sts.NewFromConfig(cfg)
 			assumeRoleProvider := stscreds.NewAssumeRoleProvider(stsClient, c.AWSAssumeRoleArn)
@@ -92,7 +92,7 @@ func (c SourceConfig) AWSLoadOpts(ctx context.Context) []func(*config.LoadOption
 		}
 	}
 
-	return opts
+	return opts, nil
 }
 
 type Iterator interface {
@@ -113,7 +113,11 @@ func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 	sdk.Logger(ctx).Info().Msg("Opening DynamoDB Source...")
 
 	// Load AWS config with options from source config
-	cfg, err := config.LoadDefaultConfig(ctx, s.config.AWSLoadOpts(ctx)...)
+	opts, err := s.config.AWSLoadOpts(ctx)
+	if err != nil {
+		return fmt.Errorf("could not load AWS config options: %w", err)
+	}
+	cfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return fmt.Errorf("could not load AWS config: %w", err)
 	}
