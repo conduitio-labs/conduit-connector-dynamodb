@@ -80,11 +80,11 @@ func (c SourceConfig) AWSLoadOpts(ctx context.Context) []func(*config.LoadOption
 	}
 
 	if c.AWSAssumeRoleArn != "" {
-		fmt.Println("Use assume role")
+		sdk.Logger(ctx).Info().Msg("Use AWS Assume Role...")
 		// Load default AWS config with our options
 		cfg, err := config.LoadDefaultConfig(ctx, opts...)
 		if err != nil {
-			fmt.Printf("Error loading AWS config: %v\n", err)
+			fmt.Errorf("Error loading AWS config for AWS Assume Role: %w", err)
 		} else {
 			stsClient := sts.NewFromConfig(cfg)
 			assumeRoleProvider := stscreds.NewAssumeRoleProvider(stsClient, c.AWSAssumeRoleArn)
