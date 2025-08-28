@@ -3,13 +3,13 @@ module github.com/conduitio-labs/conduit-connector-dynamodb
 go 1.24.2
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.38.1
+	github.com/aws/aws-sdk-go-v2 v1.38.2
 	github.com/aws/aws-sdk-go-v2/config v1.31.2
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.6
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.49.1
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.29.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.0
-	github.com/aws/smithy-go v1.22.5
+	github.com/aws/smithy-go v1.23.0
 	github.com/conduitio/conduit-commons v0.6.0
 	github.com/conduitio/conduit-connector-sdk v0.14.1
 	github.com/google/uuid v1.6.0
