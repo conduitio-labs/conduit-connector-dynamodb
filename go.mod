@@ -4,7 +4,7 @@ go 1.24.2
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.39.0
-	github.com/aws/aws-sdk-go-v2/config v1.31.5
+	github.com/aws/aws-sdk-go-v2/config v1.31.7
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.11
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.50.2
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.30.3
