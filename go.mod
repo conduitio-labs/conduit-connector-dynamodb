@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.51.0
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.30.3
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.6
-	github.com/aws/smithy-go v1.23.0
+	github.com/aws/smithy-go v1.23.1
 	github.com/conduitio/conduit-commons v0.6.0
 	github.com/conduitio/conduit-connector-sdk v0.14.1
 	github.com/google/uuid v1.6.0
